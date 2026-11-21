@@ -1658,7 +1658,24 @@ function nextMonday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+async function copyPlanPrompt() {
+  const weeks = Number($("#plan-ai-weeks").value) || 4;
+  const text = await (await fetch(`/api/plan/prompt?weeks=${weeks}&start=${pform.start.value || ""}`)).text();
+  const box = $("#plan-ai-text");
+  box.value = text;
+  box.hidden = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    $("#plan-ai-state").textContent = `✓ Kopiert (${Math.round(text.length / 4)} Tokens ca.) – in die KI einfügen`;
+  } catch {
+    box.select();
+    $("#plan-ai-state").textContent = "Text markiert – mit ⌘C kopieren";
+  }
+}
+
 function openPlanImport() {
+  $("#plan-ai-text").hidden = true;
+  $("#plan-ai-state").textContent = "";
   pform.start.value = nextMonday();
   delete pform.start.dataset.touched;
   $("#plan-preview").innerHTML = "";
@@ -1666,10 +1683,16 @@ function openPlanImport() {
   planDialog.showModal();
 }
 
+// KI-Antworten enthalten oft ```json …``` oder Text drumherum: nur das äußerste { … } verwenden
+function extractJson(text) {
+  const start = text.indexOf("{"), end = text.lastIndexOf("}");
+  return start >= 0 && end > start ? text.slice(start, end + 1) : text;
+}
+
 function planBody() {
   let plan;
   try {
-    plan = JSON.parse($("#plan-json").value);
+    plan = JSON.parse(extractJson($("#plan-json").value));
   } catch (e) {
     throw new Error(`Kein gültiges JSON: ${e.message}`);
   }
@@ -1701,15 +1724,18 @@ function renderPlanPreview(res) {
   const byWeek = {};
   for (const w of res.workouts) (byWeek[`KW ${isoWeek(w.date)}`] ||= []).push(w);
   const weekday = (iso) => new Date(iso).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const warnings = res.warnings?.length
+    ? `<ul class="warn">${res.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>` : "";
   $("#plan-preview").innerHTML = `
     <p><b>${res.workouts.length} Workouts</b> · ${fmtDate(res.start)} – ${fmtDate(res.end)} · ${fmtHours(hours)} gesamt</p>
+    ${warnings}
     ${res.existing ? `<p class="warn small">Im Zeitraum sind schon ${res.existing} geplante Workouts.
       ${pform.replace.checked ? "Sie werden ersetzt (auch auf den Geräten)." : "Sie bleiben zusätzlich bestehen."}</p>` : ""}
     <div class="plan-weeks">${Object.entries(byWeek).map(([week, list]) => `
       <div class="plan-week">
         <div class="row-between"><b>${week}</b><span class="muted small">${fmtHours(list.reduce((s, w) => s + w.duration, 0) / 3600)}</span></div>
         ${list.map((w) => `<div class="plan-item"><span class="muted">${weekday(w.date)}</span>
-          <span><span class="dot" style="background:${sportColor(w.sport)}"></span>${w.name}</span>
+          <span><span class="dot" style="background:${sportColor(w.sport)}"></span>${escapeHtml(w.name)}</span>
           <span class="muted">${fmtMin(w.duration)} · ${Math.round(w.tss)} TSS</span></div>`).join("")}
       </div>`).join("")}</div>`;
 }
@@ -1821,6 +1847,7 @@ async function main() {
     checkPlan();
   };
   $("#btn-plan-check").onclick = withBusy($("#btn-plan-check"), checkPlan);
+  $("#btn-plan-ai").onclick = withBusy($("#btn-plan-ai"), copyPlanPrompt);
   $("#btn-plan-import").onclick = withBusy($("#btn-plan-import"), importPlan);
 
   $("#btn-add-goal").onclick = () => openGoal({});

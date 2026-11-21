@@ -24,6 +24,11 @@ Format (Beispiel: app/static/plan-example.json):
 - Schritte: "kind" (warmup | interval | recovery | steady | cooldown), Dauer als "minutes" oder
   "seconds", Intensität "low"/"high" in % (FTP / Schwellentempo bzw. CSS / LTHR je nach "target").
   Wiederholung: {"repeat": 4, "steps": [...]}.
+- Kurzform (spart viel Text, z. B. für KI-Pläne): "steps": "w15@50-75, 4x(i8@97-102, r4@50-55), c10@50-65"
+  w/i/r/s/c = warmup/interval/recovery/steady/cooldown, Zahl = Minuten (Suffix s = Sekunden), @von-bis in %.
+- "time": "08:00" → Startzeit (steht dann vorne im Namen, daraus rechnet die Ernährung den Zeitpunkt).
+- "fueling": {"before": "…", "during": "90 g/h", "after": "…", "day": "6–10 g/kg"} → KH-Block in der Beschreibung.
+  Ohne "fueling" berechnet die App die Ernährung selbst (app/nutrition.py).
 - Kraft/Stabi optional mit Zirkel-Timer: "circuit": {"work": 40, "rest": 20, "rounds": 3, "round_rest": 60,
   "exercises": ["Plank", "Rudern mit Band | 12 Wdh", {"name": "Wandsitz", "seconds": 45}]} – Sekunden,
   Runde = einmal alle Übungen. Übung ohne Angabe dauert "work"; mit Wiederholungen geht es per „Fertig“ weiter
@@ -44,6 +49,15 @@ DAY_NAMES = {
 }
 DAY_INDEX = {name: i for i, names in DAY_NAMES.items() for name in names}
 TARGETS = ("power", "pace", "hr")
+# Bekannte Felder – alles andere wird in der Vorschau als Warnung gemeldet statt still verworfen
+PLAN_KEYS = {"name", "start", "weeks", "workouts", "description"}
+WEEK_KEYS = {"week", "days", "name", "description"}
+WORKOUT_KEYS = {"sport", "name", "description", "target", "steps", "template", "minutes", "circuit", "date", "time",
+                "fueling"}
+FUEL_KEYS = {"before": "Vorher", "during": "Während", "after": "Danach", "day": "Tagesziel"}
+KIND_LETTERS = {"w": "warmup", "i": "interval", "r": "recovery", "s": "steady", "c": "cooldown"}
+COMPACT_STEP = re.compile(r"([wirsc])\s*(\d+(?:[.,]\d+)?)\s*(s|sek|m|min)?\s*(?:@\s*(\d+(?:[.,]\d+)?)"
+                          r"(?:\s*-\s*(\d+(?:[.,]\d+)?))?\s*%?)?", re.I)
 
 
 class PlanError(ValueError):
@@ -62,7 +76,47 @@ def _number(value, where: str) -> float:
         raise PlanError(f"{where}: Zahl erwartet, bekommen: {value!r}") from None
 
 
-def _steps(raw: list, where: str) -> list[dict]:
+def _split_top(text: str) -> list[str]:
+    """Kommagetrennte Teile, Kommas in Klammern bleiben drin."""
+    parts, depth, cur = [], 0, ""
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        if ch in ",;" and depth == 0:
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    parts.append(cur)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def compact_steps(text: str, where: str) -> list[dict]:
+    """Kurzform "w15@50-75, 4x(i8@97-102, r4@50-55), c10" → Schritte im Plan-Format."""
+    out = []
+    for part in _split_top(text):
+        m = re.fullmatch(r"(\d+)\s*[x×]\s*[(\[](.*)[)\]]", part, re.S)
+        if m:
+            out.append({"repeat": int(m[1]), "steps": compact_steps(m[2], where)})
+            continue
+        m = COMPACT_STEP.fullmatch(part)
+        if not m:
+            raise PlanError(f"{where}: Schritt {part!r} nicht verstanden – Form z. B. 'i8@97-102' oder '4x(i4@110, r4@50)'")
+        amount = float(m[2].replace(",", "."))
+        low = float(m[4].replace(",", ".")) if m[4] else 0
+        high = float(m[5].replace(",", ".")) if m[5] else low
+        unit = "seconds" if (m[3] or "").lower() in ("s", "sek") else "minutes"
+        out.append({"kind": KIND_LETTERS[m[1].lower()], unit: amount, "low": low, "high": high})
+    if not out:
+        raise PlanError(f"{where}: 'steps' ist leer")
+    return out
+
+
+def _steps(raw: list | str, where: str) -> list[dict]:
+    if isinstance(raw, str):
+        raw = compact_steps(raw, where)
     if not isinstance(raw, list) or not raw:
         raise PlanError(f"{where}: 'steps' muss eine nicht-leere Liste sein")
     out = []
@@ -139,9 +193,31 @@ def parse_circuit(raw, where: str) -> dict:
     return out
 
 
-def _workout(raw: dict, day: date, where: str) -> dict:
+def _unknown(raw: dict, known: set, where: str, warnings: list | None) -> None:
+    if warnings is not None:
+        warnings += [f"{where}: Feld {k!r} unbekannt – ignoriert" for k in raw if k not in known]
+
+
+def fueling_block(raw, where: str, warnings: list | None = None) -> str:
+    """"fueling" → KH-Block im Format, das app/nutrition.py in der Beschreibung liest."""
+    if isinstance(raw, str):
+        raw = {"during": raw}
+    if not isinstance(raw, dict):
+        raise PlanError(f"{where}: 'fueling' muss ein Objekt sein, z. B. {{\"during\": \"90 g/h\"}}")
+    _unknown(raw, set(FUEL_KEYS), f"{where}, fueling", warnings)
+    text = {k: str(raw[k]).strip().rstrip(".") for k in FUEL_KEYS if str(raw.get(k) or "").strip()}
+    if "day" in text:  # das Tagesziel steht in der Danach-Zeile
+        day = text.pop("day")
+        day = day if day.lower().startswith("tagesziel") else f"Tagesziel {day}"
+        text["after"] = f"{text['after']}; {day}" if "after" in text else day
+    lines = [f"- {FUEL_KEYS[k]}: {v}." for k, v in text.items()]
+    return "KH:\n" + "\n".join(lines) if lines else ""
+
+
+def _workout(raw: dict, day: date, where: str, warnings: list | None = None) -> dict:
     if not isinstance(raw, dict):
         raise PlanError(f"{where}: Workout-Objekt erwartet")
+    _unknown(raw, WORKOUT_KEYS, where, warnings)
     sport = raw.get("sport", "ride")
     if sport not in SPORTS:
         raise PlanError(f"{where}: unbekannter Sport {sport!r} (erlaubt: {', '.join(SPORTS)})")
@@ -160,10 +236,20 @@ def _workout(raw: dict, day: date, where: str) -> dict:
         raise PlanError(f"{where}: unbekanntes Ziel {target!r} (erlaubt: {', '.join(TARGETS)})")
     if "circuit" in raw:
         workout["circuit"] = parse_circuit(raw["circuit"], where)
+    name = str(raw.get("name") or workout["name"]).strip()
+    if raw.get("time"):
+        m = re.fullmatch(r"(\d{1,2})[:.](\d{2})", str(raw["time"]).strip())
+        if not m or int(m[1]) > 23 or int(m[2]) > 59:
+            raise PlanError(f"{where}: 'time' muss eine Uhrzeit wie \"07:30\" sein")
+        if not re.match(r"\s*\d{1,2}[:.]\d{2}\b", name):  # Startzeit steht vorne im Namen (so liest sie die App)
+            name = f"{int(m[1]):02d}:{m[2]} · {name}"
+    description = str(raw.get("description", workout["description"])).strip()
+    if raw.get("fueling"):
+        block = fueling_block(raw["fueling"], where, warnings)
+        description = f"{description}\n\n{block}".strip() if block else description
     return {
         **workout, "date": day.isoformat(), "target": target, "status": "planned",
-        "name": str(raw.get("name") or workout["name"])[:120],
-        "description": str(raw.get("description", workout["description"])),
+        "name": name[:120], "description": description,
     }
 
 
@@ -172,10 +258,13 @@ def build_workout(raw: dict, day: date) -> dict:
     return _workout(raw, day, "Workout")
 
 
-def parse(plan: dict, today: date, start: str | None = None) -> tuple[list[dict], date, date]:
-    """Plan → Liste von Workouts mit Datum. Wirft PlanError mit verständlicher Meldung."""
+def parse(plan: dict, today: date, start: str | None = None,
+          warnings: list | None = None) -> tuple[list[dict], date, date]:
+    """Plan → Liste von Workouts mit Datum. Wirft PlanError mit verständlicher Meldung.
+    warnings (Liste) sammelt Hinweise, z. B. auf unbekannte Felder."""
     if not isinstance(plan, dict):
         raise PlanError("Der Plan muss ein JSON-Objekt sein ({ ... })")
+    _unknown(plan, PLAN_KEYS, "Plan", warnings)
     try:
         first = monday(date.fromisoformat(start or plan.get("start") or default_start(today).isoformat()))
     except ValueError:
@@ -185,6 +274,7 @@ def parse(plan: dict, today: date, start: str | None = None) -> tuple[list[dict]
     workouts = []
     for wi, week in enumerate(plan.get("weeks") or [], 1):
         number = int(_number(week.get("week", wi), f"Woche {wi}"))
+        _unknown(week, WEEK_KEYS, f"Woche {number}", warnings)
         if number < 1:
             raise PlanError(f"Woche {wi}: 'week' muss ≥ 1 sein")
         for day_name, items in (week.get("days") or {}).items():
@@ -193,13 +283,14 @@ def parse(plan: dict, today: date, start: str | None = None) -> tuple[list[dict]
                 raise PlanError(f"Woche {number}: unbekannter Tag {day_name!r} (z. B. mon, Di, Mittwoch)")
             day = first + timedelta(weeks=number - 1, days=index)
             for ii, raw in enumerate(items if isinstance(items, list) else [items], 1):
-                workouts.append(_workout(raw, day, f"Woche {number} {DAY_NAMES[index][1].title()}, Workout {ii}"))
+                workouts.append(_workout(raw, day, f"Woche {number} {DAY_NAMES[index][1].title()}, Workout {ii}",
+                                         warnings))
     for ii, raw in enumerate(plan.get("workouts") or [], 1):  # Workouts mit festem Datum
         try:
             day = date.fromisoformat(raw["date"])
         except (KeyError, TypeError, ValueError):
             raise PlanError(f"workouts[{ii}]: 'date' fehlt oder ist kein Datum (JJJJ-MM-TT)") from None
-        workouts.append(_workout(raw, day, f"workouts[{ii}] ({raw['date']})"))
+        workouts.append(_workout(raw, day, f"workouts[{ii}] ({raw['date']})", warnings))
 
     if not workouts:
         raise PlanError("Keine Workouts gefunden – erwartet wird 'weeks' (mit 'days') oder 'workouts'")

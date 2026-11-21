@@ -4,130 +4,384 @@
     {
       "week": 1,
       "days": {
-        "mon": [{ "sport": "mobility", "template": "mobility", "minutes": 25 }],
+        "mon": [
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 25
+          }
+        ],
         "tue": [
-          { "sport": "ride", "name": "Sweet Spot 3x12", "target": "power", "steps": [
-            { "kind": "warmup", "minutes": 15, "low": 50, "high": 75 },
-            { "repeat": 3, "steps": [
-              { "kind": "interval", "minutes": 12, "low": 88, "high": 93 },
-              { "kind": "recovery", "minutes": 5, "low": 50, "high": 55 }
-            ] },
-            { "kind": "cooldown", "minutes": 10, "low": 50, "high": 65 }
-          ] },
-          { "sport": "strength", "template": "stabi", "minutes": 45 }
+          {
+            "sport": "ride",
+            "name": "Sweet Spot 3x12",
+            "target": "power",
+            "steps": [
+              {
+                "kind": "warmup",
+                "minutes": 15,
+                "low": 50,
+                "high": 75
+              },
+              {
+                "repeat": 3,
+                "steps": [
+                  {
+                    "kind": "interval",
+                    "minutes": 12,
+                    "low": 88,
+                    "high": 93
+                  },
+                  {
+                    "kind": "recovery",
+                    "minutes": 5,
+                    "low": 50,
+                    "high": 55
+                  }
+                ]
+              },
+              {
+                "kind": "cooldown",
+                "minutes": 10,
+                "low": 50,
+                "high": 65
+              }
+            ]
+          },
+          {
+            "sport": "strength",
+            "template": "stabi",
+            "minutes": 45
+          }
         ],
         "wed": [
-          { "sport": "swim", "name": "CSS 8x200", "target": "pace", "description": "Pausen 20 s am Beckenrand.", "steps": [
-            { "kind": "warmup", "minutes": 10, "low": 75, "high": 85 },
-            { "repeat": 8, "steps": [
-              { "kind": "interval", "minutes": 3, "low": 97, "high": 101 },
-              { "kind": "recovery", "seconds": 20, "low": 0 }
-            ] },
-            { "kind": "cooldown", "minutes": 5, "low": 70, "high": 80 }
-          ] },
-          { "sport": "run", "template": "endurance", "minutes": 45 }
+          {
+            "sport": "swim",
+            "name": "CSS 8x200",
+            "target": "pace",
+            "description": "Pausen 20 s am Beckenrand.",
+            "steps": [
+              {
+                "kind": "warmup",
+                "minutes": 10,
+                "low": 75,
+                "high": 85
+              },
+              {
+                "repeat": 8,
+                "steps": [
+                  {
+                    "kind": "interval",
+                    "minutes": 3,
+                    "low": 97,
+                    "high": 101
+                  },
+                  {
+                    "kind": "recovery",
+                    "seconds": 20,
+                    "low": 0
+                  }
+                ]
+              },
+              {
+                "kind": "cooldown",
+                "minutes": 5,
+                "low": 70,
+                "high": 80
+              }
+            ]
+          },
+          {
+            "sport": "run",
+            "template": "endurance",
+            "minutes": 45
+          }
         ],
         "thu": [
-          { "sport": "run", "name": "Tempo 3x10", "target": "pace", "steps": [
-            { "kind": "warmup", "minutes": 15, "low": 70, "high": 80 },
-            { "repeat": 3, "steps": [
-              { "kind": "interval", "minutes": 10, "low": 86, "high": 91 },
-              { "kind": "recovery", "minutes": 3, "low": 65, "high": 72 }
-            ] },
-            { "kind": "cooldown", "minutes": 10, "low": 65, "high": 72 }
-          ] },
-          { "sport": "ride", "template": "endurance", "minutes": 60 }
+          {
+            "sport": "run",
+            "name": "Tempo 3x10",
+            "time": "18:00",
+            "steps": "w15@70-80, 3x(i10@86-91, r3@65-72), c10@65-72"
+          },
+          {
+            "sport": "ride",
+            "template": "endurance",
+            "minutes": 60
+          }
         ],
         "fri": [
-          { "sport": "swim", "template": "endurance", "minutes": 45 },
-          { "sport": "strength", "template": "stabi", "minutes": 45 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 45
+          },
+          {
+            "sport": "strength",
+            "template": "stabi",
+            "minutes": 45
+          }
         ],
         "sat": [
-          { "sport": "swim", "template": "endurance", "minutes": 40 },
-          { "sport": "ride", "template": "long", "minutes": 180 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 40
+          },
+          {
+            "sport": "ride",
+            "template": "long",
+            "minutes": 180,
+            "name": "Lange Grundlage",
+            "fueling": {
+              "during": "90 g/h (Darmtraining)"
+            }
+          }
         ],
         "sun": [
-          { "sport": "run", "template": "long", "minutes": 80 },
-          { "sport": "mobility", "template": "mobility", "minutes": 25 }
+          {
+            "sport": "run",
+            "template": "long",
+            "minutes": 80
+          },
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 25
+          }
         ]
       }
     },
     {
       "week": 2,
       "days": {
-        "mon": [{ "sport": "mobility", "template": "mobility", "minutes": 25 }],
+        "mon": [
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 25
+          }
+        ],
         "tue": [
-          { "sport": "ride", "template": "sweetspot", "minutes": 80 },
-          { "sport": "strength", "template": "stabi", "minutes": 45 }
+          {
+            "sport": "ride",
+            "template": "sweetspot",
+            "minutes": 80
+          },
+          {
+            "sport": "strength",
+            "template": "stabi",
+            "minutes": 45
+          }
         ],
         "wed": [
-          { "sport": "swim", "template": "threshold", "minutes": 55 },
-          { "sport": "run", "template": "endurance", "minutes": 50 }
+          {
+            "sport": "swim",
+            "template": "threshold",
+            "minutes": 55
+          },
+          {
+            "sport": "run",
+            "template": "endurance",
+            "minutes": 50
+          }
         ],
         "thu": [
-          { "sport": "run", "template": "tempo", "minutes": 65 },
-          { "sport": "ride", "template": "endurance", "minutes": 60 }
+          {
+            "sport": "run",
+            "template": "tempo",
+            "minutes": 65
+          },
+          {
+            "sport": "ride",
+            "template": "endurance",
+            "minutes": 60
+          }
         ],
         "fri": [
-          { "sport": "swim", "template": "endurance", "minutes": 45 },
-          { "sport": "strength", "template": "stabi", "minutes": 45 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 45
+          },
+          {
+            "sport": "strength",
+            "template": "stabi",
+            "minutes": 45
+          }
         ],
         "sat": [
-          { "sport": "swim", "template": "endurance", "minutes": 45 },
-          { "sport": "ride", "template": "long", "minutes": 200 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 45
+          },
+          {
+            "sport": "ride",
+            "template": "long",
+            "minutes": 200
+          }
         ],
         "sun": [
-          { "sport": "run", "template": "long", "minutes": 90 },
-          { "sport": "mobility", "template": "mobility", "minutes": 25 }
+          {
+            "sport": "run",
+            "template": "long",
+            "minutes": 90
+          },
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 25
+          }
         ]
       }
     },
     {
       "week": 3,
       "days": {
-        "mon": [{ "sport": "mobility", "template": "mobility", "minutes": 25 }],
+        "mon": [
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 25
+          }
+        ],
         "tue": [
-          { "sport": "ride", "template": "sweetspot", "minutes": 90 },
-          { "sport": "strength", "template": "stabi", "minutes": 45 }
+          {
+            "sport": "ride",
+            "template": "sweetspot",
+            "minutes": 90
+          },
+          {
+            "sport": "strength",
+            "template": "stabi",
+            "minutes": 45
+          }
         ],
         "wed": [
-          { "sport": "swim", "template": "threshold", "minutes": 60 },
-          { "sport": "run", "template": "endurance", "minutes": 50 }
+          {
+            "sport": "swim",
+            "template": "threshold",
+            "minutes": 60
+          },
+          {
+            "sport": "run",
+            "template": "endurance",
+            "minutes": 50
+          }
         ],
         "thu": [
-          { "sport": "run", "template": "tempo", "minutes": 70 },
-          { "sport": "ride", "template": "endurance", "minutes": 75 }
+          {
+            "sport": "run",
+            "template": "tempo",
+            "minutes": 70
+          },
+          {
+            "sport": "ride",
+            "template": "endurance",
+            "minutes": 75
+          }
         ],
         "fri": [
-          { "sport": "swim", "template": "endurance", "minutes": 50 },
-          { "sport": "strength", "template": "stabi", "minutes": 45 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 50
+          },
+          {
+            "sport": "strength",
+            "template": "stabi",
+            "minutes": 45
+          }
         ],
         "sat": [
-          { "sport": "swim", "template": "endurance", "minutes": 45 },
-          { "sport": "ride", "template": "long", "minutes": 220 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 45
+          },
+          {
+            "sport": "ride",
+            "template": "long",
+            "minutes": 220
+          }
         ],
         "sun": [
-          { "sport": "run", "template": "long", "minutes": 100 },
-          { "sport": "mobility", "template": "mobility", "minutes": 25 }
+          {
+            "sport": "run",
+            "template": "long",
+            "minutes": 100
+          },
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 25
+          }
         ]
       }
     },
     {
       "week": 4,
       "days": {
-        "mon": [{ "sport": "mobility", "template": "mobility", "minutes": 30 }],
-        "tue": [{ "sport": "ride", "template": "endurance", "minutes": 60 }],
+        "mon": [
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 30
+          }
+        ],
+        "tue": [
+          {
+            "sport": "ride",
+            "template": "endurance",
+            "minutes": 60
+          }
+        ],
         "wed": [
-          { "sport": "swim", "template": "endurance", "minutes": 40 },
-          { "sport": "run", "template": "recovery", "minutes": 30 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 40
+          },
+          {
+            "sport": "run",
+            "template": "recovery",
+            "minutes": 30
+          }
         ],
-        "thu": [{ "sport": "ride", "template": "endurance", "minutes": 60 }],
-        "fri": [{ "sport": "mobility", "template": "mobility", "minutes": 30 }],
+        "thu": [
+          {
+            "sport": "ride",
+            "template": "endurance",
+            "minutes": 60
+          }
+        ],
+        "fri": [
+          {
+            "sport": "mobility",
+            "template": "mobility",
+            "minutes": 30
+          }
+        ],
         "sat": [
-          { "sport": "swim", "template": "endurance", "minutes": 40 },
-          { "sport": "ride", "template": "endurance", "minutes": 120 }
+          {
+            "sport": "swim",
+            "template": "endurance",
+            "minutes": 40
+          },
+          {
+            "sport": "ride",
+            "template": "endurance",
+            "minutes": 120
+          }
         ],
-        "sun": [{ "sport": "run", "template": "endurance", "minutes": 60 }]
+        "sun": [
+          {
+            "sport": "run",
+            "template": "endurance",
+            "minutes": 60
+          }
+        ]
       }
     }
   ]

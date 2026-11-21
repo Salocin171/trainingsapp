@@ -47,7 +47,7 @@ class AppNotRunning(ToolError):
     pass
 
 
-def _api(method: str, path: str, **kwargs):
+def _api(method: str, path: str, text: bool = False, **kwargs):
     try:
         r = httpx.request(method, BASE + path, timeout=120, **kwargs)
     except httpx.ConnectError:
@@ -58,7 +58,7 @@ def _api(method: str, path: str, **kwargs):
         except ValueError:
             detail = r.text
         raise ToolError(f"{method} {path} → {r.status_code}: {detail}")
-    return r.json()
+    return r.text if text else r.json()
 
 
 def _minutes(seconds) -> int:
@@ -120,9 +120,36 @@ def get_calendar(start: str, end: str) -> dict:
 
 @server.tool(annotations=READ)
 def get_workout(workout_id: int) -> dict:
-    """Ein Workout mit allen Schritten (Dauer in Sekunden, low/high in %), Beschreibung, Sync-Status und
-    'nutrition': Verpflegung vorher/während/danach (KH, Flüssigkeit, Protein) für das Gewicht aus den Einstellungen."""
-    return _api("GET", f"/api/workouts/{workout_id}")
+    """Ein Workout mit allen Schritten (Dauer in Sekunden, low/high in %), Beschreibung, Sync-Zielen und
+    'nutrition': Verpflegung vorher/während/danach (KH, Flüssigkeit, Protein) für das Gewicht aus den Einstellungen,
+    je Phase eine Zeile; "(Plan)" = Zahl aus dem KH-Block der Beschreibung, sonst von der App berechnet."""
+    w = _api("GET", f"/api/workouts/{workout_id}")
+    w["sync"] = sorted((w.get("sync") or {}).keys())  # IDs und Pfade braucht Claude nicht
+    if w.get("nutrition"):
+        w["nutrition"] = _nutrition_brief(w["nutrition"])
+    return w
+
+
+def _qty(q: dict | None) -> str:
+    if not q:
+        return ""
+    return f"{q['low']}{'' if q['low'] == q['high'] else '–' + str(q['high'])} {q['unit']}"
+
+
+def _nutrition_brief(n: dict) -> dict:
+    """Ernährung kompakt: je Phase eine Zeile statt des ganzen Objekts der Detailansicht."""
+    out = {"kind": n["kind_label"], "weight_kg": n["weight"]}
+    for key, p in n["phases"].items():
+        carbs = _qty(p.get("carbs"))
+        parts = [f"KH {carbs}{' (Plan)' if p.get('source') == 'plan' else ''}" if carbs else "",
+                 f"≈{_qty(p['total'])} gesamt" if p.get("total") else "",
+                 f"Trinken {_qty(p.get('fluid'))}" if p.get("fluid") else "",
+                 f"Protein {_qty(p.get('protein'))}" if p.get("protein") else "",
+                 p.get("timing") or p.get("hint") or ""]
+        out[key] = " · ".join(x for x in parts if x) or "–"
+    day = n["day"]
+    out["day"] = f"KH {_qty(day)} ({'–'.join(f'{v:g}' for v in day['per_kg'])} g/kg, {day['label']})"
+    return out
 
 
 @server.tool(annotations=READ)
@@ -178,12 +205,17 @@ def get_settings() -> dict:
 
 @server.tool(annotations=WRITE)
 def create_workout(date: str, sport: str, name: str = "", description: str = "", target: str = "",
-                   steps: list[dict] | None = None, template: str = "", minutes: int = 60,
-                   circuit: dict | None = None, send_to: list[str] | None = None) -> dict:
+                   steps: list[dict] | str | None = None, template: str = "", minutes: int = 60,
+                   circuit: dict | None = None, time: str = "", fueling: dict | None = None,
+                   send_to: list[str] | None = None) -> dict:
     """Workout anlegen. Entweder `steps` oder `template` + `minutes`.
 
-    steps: [{"kind": "warmup|interval|recovery|steady|cooldown", "minutes": 10, "low": 65, "high": 75},
-            {"repeat": 4, "steps": [...]}] – low/high in % (FTP bzw. Schwellentempo/CSS bzw. LTHR je nach target).
+    steps – Kurzform (spart Tokens): "w15@50-75, 4x(i8@97-102, r4@50-55), c10@50-65" (w/i/r/s/c = warmup/interval/
+            recovery/steady/cooldown, Zahl = Minuten, Suffix s = Sekunden, @von-bis in %) oder als Liste
+            [{"kind": "warmup", "minutes": 10, "low": 65, "high": 75}, {"repeat": 4, "steps": [...]}].
+            low/high in % (FTP bzw. Schwellentempo/CSS bzw. LTHR je nach target).
+    time: Startzeit "07:30" (kommt vorne in den Namen). fueling: {"before", "during", "after", "day"} als Text →
+            KH-Block in der Beschreibung; ohne fueling berechnet die App die Ernährung selbst.
     template: recovery, endurance, long, race_pace, tempo, sweetspot, threshold, vo2max, openers, brick, stabi, mobility.
     target: power | pace | hr (Standard je Sport).
     circuit (Kraft/Stabi, Zirkel-Timer in der App, geht so auch an Garmin): {"work": 40, "rest": 20, "rounds": 3,
@@ -202,6 +234,10 @@ def create_workout(date: str, sport: str, name: str = "", description: str = "",
         raw["template"] = template
     if circuit:
         raw["circuit"] = circuit
+    if time:
+        raw["time"] = time
+    if fueling:
+        raw["fueling"] = fueling
     try:
         workout = plan_import.build_workout(raw, Date.fromisoformat(date))
     except ValueError as e:  # PlanError oder ungültiges Datum
@@ -222,14 +258,18 @@ def _send(res: dict, send_to: list[str] | None) -> dict:
 
 @server.tool(annotations=WRITE)
 def update_workout(workout_id: int, date: str = "", name: str = "", description: str = "",
-                   steps: list[dict] | None = None, status: str = "", rpe: float | None = None,
+                   steps: list[dict] | str | None = None, status: str = "", rpe: float | None = None,
                    feel: int | None = None, note: str = "", circuit: dict | None = None,
                    send_to: list[str] | None = None) -> dict:
     """Workout ändern (nur angegebene Felder). steps und circuit im selben Format wie bei create_workout.
     status: planned | done. rpe 0–10, feel 1–5. Bereits übertragene Workouts werden auf den Geräten aktualisiert."""
     w = _api("GET", f"/api/workouts/{workout_id}")
+    w.pop("nutrition", None)
     if steps:
-        w["steps"] = plan_import.build_workout({"sport": w["sport"], "steps": steps}, Date.today())["steps"]
+        try:
+            w["steps"] = plan_import.build_workout({"sport": w["sport"], "steps": steps}, Date.today())["steps"]
+        except plan_import.PlanError as e:
+            raise ToolError(str(e)) from None
     if circuit:
         try:
             w["circuit"] = plan_import.parse_circuit(circuit, "Workout")
@@ -262,20 +302,44 @@ def accept_suggestion(index: int, send_to: list[str] | None = None) -> dict:
 
 
 @server.tool(annotations=WRITE)
-def import_plan(plan: dict, start: str = "", replace: bool = False, dry_run: bool = True) -> dict:
+def import_plan(plan: dict | None = None, start: str = "", replace: bool = False, dry_run: bool = True,
+                preview_id: str = "") -> dict:
     """Trainingsplan (z. B. 4-Wochen-Block) im JSON-Format der App prüfen bzw. importieren.
 
     Format: {"name": "...", "weeks": [{"week": 1, "days": {"mon": [Workout, ...], ...}}]} – Workouts wie bei
-    create_workout (sport, name, steps oder template + minutes). start = Montag der 1. Woche (sonst nächster Montag).
-    dry_run=True (Standard) zeigt nur die Vorschau. replace=True ersetzt geplante Workouts im Zeitraum.
+    create_workout (sport, name, time, steps in Kurzform oder template + minutes, optional fueling).
+    start = Montag der 1. Woche (sonst nächster Montag). replace=True ersetzt geplante Workouts im Zeitraum.
+    Tokens sparen: zuerst mit plan prüfen (dry_run=True, Standard) – die Antwort enthält eine preview_id. Dann nur
+    import_plan(preview_id=…) aufrufen, statt den ganzen Plan noch einmal zu senden. Den Auftragstext mit allen
+    Vorgaben (Soll-Stunden, Wochenmuster, Schwellen) liefert get_plan_brief.
     """
+    if preview_id:
+        params = {} if replace is False else {"replace": True}
+        return _api("POST", f"/api/plan/import/{preview_id}", params=params)
+    if not plan:
+        raise ToolError("plan oder preview_id angeben.")
     body = {"plan": plan, "start": start or None, "replace": replace}
     if dry_run:
         res = _api("POST", "/api/plan/preview", json=body)
-        return {"preview": [_workout_brief({**w, "id": None}) for w in res["workouts"]], "start": res["start"],
-                "end": res["end"], "existing_planned_in_range": res["existing"],
-                "hint": "Zum Importieren erneut mit dry_run=False aufrufen."}
+        weeks: dict[str, dict] = {}
+        for w in res["workouts"]:  # kompakte Vorschau: je Woche Stunden und Einheiten statt aller Details
+            week = weeks.setdefault(Date.fromisoformat(w["date"]).strftime("KW %V"), {"hours": 0.0, "workouts": []})
+            week["hours"] += w["duration"] / 3600
+            week["workouts"].append(f"{w['date'][5:]} {w['sport']} {w['name']} {_minutes(w['duration'])}′ "
+                                    f"{round(w['tss'])} TSS")
+        return {"preview_id": res["preview_id"], "start": res["start"], "end": res["end"],
+                "weeks": {k: {**v, "hours": round(v["hours"], 1)} for k, v in weeks.items()},
+                "existing_planned_in_range": res["existing"], "warnings": res["warnings"],
+                "hint": "Zum Importieren import_plan(preview_id=…) aufrufen (replace=True ersetzt Geplantes)."}
     return _api("POST", "/api/plan/import", json=body)
+
+
+@server.tool(annotations=READ)
+def get_plan_brief(start: str = "", weeks: int = 4) -> str:
+    """Kompakter Auftragstext für einen Trainingsblock: Schwellen, Gewicht, Saisonziel, Soll-Stunden und Blockfokus
+    je Woche, Wochenmuster, Wettkämpfe, Zonen und das Kurzformat. Ersetzt get_status + get_settings beim Planen
+    eines Blocks. start = Montag (Standard: nächster Montag), weeks 1–8."""
+    return _api("GET", "/api/plan/prompt", params={"start": start, "weeks": weeks}, text=True)
 
 
 @server.tool(annotations=WRITE)

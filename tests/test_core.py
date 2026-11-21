@@ -449,11 +449,11 @@ def test_mcp_server_tools(tmp_path, monkeypatch):
     db.set_db_path(tmp_path / "mcp.db")
     client = TestClient(app)
 
-    def fake_api(method, path, **kwargs):
+    def fake_api(method, path, text=False, **kwargs):
         r = client.request(method, path, **kwargs)
         if r.status_code >= 400:
             raise RuntimeError(r.json().get("detail"))
-        return r.json()
+        return r.text if text else r.json()
 
     monkeypatch.setattr(mcp_server, "_api", fake_api)
     call = lambda name, args: json.loads(asyncio.run(mcp_server.server.call_tool(name, args)).content[0].text)  # noqa: E731
@@ -474,9 +474,21 @@ def test_mcp_server_tools(tmp_path, monkeypatch):
     assert db.get_workout(wid)["circuit"]["rounds"] == 3
     call("delete_workout", {"workout_id": wid})
     assert wid not in [w["id"] for w in call("get_calendar", {"start": "2027-03-01", "end": "2027-03-07"})["workouts"]]
-    preview = call("import_plan", {"plan": {"weeks": [{"days": {"mon": [{"sport": "run", "template": "endurance"}]}}]},
-                                   "start": "2027-03-08"})
-    assert preview["preview"][0]["date"] == "2027-03-08" and "dry_run" in preview["hint"]
+    preview = call("import_plan", {"plan": {"weeks": [{"days": {
+        "mon": [{"sport": "run", "template": "endurance", "pace": "5:00"}],
+        "tue": [{"sport": "ride", "name": "VO2", "time": "6:30", "steps": "w15@55-75, 5x(i4@110-118, r4@50), c10@50"}]}}]},
+        "start": "2027-03-08"})
+    assert preview["start"] == "2027-03-08" and preview["warnings"] == ["Woche 1 Mo, Workout 1: Feld 'pace' unbekannt – ignoriert"]
+    assert preview["weeks"]["KW 10"]["workouts"][1].startswith("03-09 ride 06:30 · VO2 65′")
+    res = call("import_plan", {"preview_id": preview["preview_id"]})  # Plan nicht erneut senden
+    assert res["created"] == 2 and db.list_workouts("2027-03-09", "2027-03-09")[0]["name"] == "06:30 · VO2"
+    with pytest.raises(Exception):  # dieselbe Vorschau ist nur einmal importierbar
+        call("import_plan", {"preview_id": preview["preview_id"]})
+    brief = asyncio.run(mcp_server.server.call_tool("get_plan_brief", {"start": "2027-03-15", "weeks": 2})).content[0].text
+    assert "Woche 2 (ab 22.03.)" in brief and "w=Einwärmen" in brief
+    short = call("create_workout", {"date": "2027-03-04", "sport": "run", "steps": "w10@70-80, 3x(i6@97-101, r2@65), c10@65",
+                                    "time": "18:00", "fueling": {"during": "0–30 g/h"}})
+    assert short["workout"]["minutes"] == 44 and short["workout"]["name"].startswith("18:00 · ")
     assert call("update_settings", {"values": {"week_hours": 10}}) == {"week_hours": 10}
 
 
@@ -834,3 +846,35 @@ def test_setup_garmin_login_with_mfa(tmp_path, monkeypatch):
     # ohne wartende Anmeldung gibt es eine verständliche Meldung statt eines Absturzes
     assert "erneut" in client.post("/api/setup/garmin", json={"code": "1"}).json()["detail"]
     garmin._client = None
+
+
+def test_plan_import_compact_steps_time_fueling_and_warnings():
+    from app import plan_import as pi
+
+    warnings = []
+    plan = {"name": "KI", "notes": "x", "weeks": [{"week": 1, "days": {"tue": [
+        {"sport": "swim", "name": "CSS", "time": "6.45", "steps": "w10@75-85; 8x(i3@97-101, r20s); c5@70-80",
+         "fueling": {"during": "0–30 g/h", "day": "5–7 g/kg", "gels": 2}}]}}]}
+    (w,), first, _ = pi.parse(plan, date(2026, 11, 21), warnings=warnings)
+    assert first == date(2026, 11, 24) and w["name"] == "06:45 · CSS"
+    assert total_duration(w["steps"]) == (10 + 8 * 3 + 5) * 60 + 8 * 20
+    assert w["description"] == "KH:\n- Während: 0–30 g/h.\n- Danach: Tagesziel 5–7 g/kg."
+    assert warnings == ["Plan: Feld 'notes' unbekannt – ignoriert",
+                        "Woche 1 Di, Workout 1, fueling: Feld 'gels' unbekannt – ignoriert"]
+    with pytest.raises(pi.PlanError, match="nicht verstanden"):
+        pi.parse({"weeks": [{"days": {"mon": [{"sport": "run", "steps": "Z2 60 min"}]}}]}, date(2026, 11, 21))
+    with pytest.raises(pi.PlanError, match="Uhrzeit"):
+        pi.parse({"weeks": [{"days": {"mon": [{"sport": "run", "template": "endurance", "time": "25:00"}]}}]},
+                 date(2026, 11, 21))
+
+
+def test_plan_prompt_contains_targets_pattern_and_format():
+    from app import plan_prompt
+
+    settings = {**SETTINGS, "weight": 72, "cycle_start": "2026-11-02"}
+    text = plan_prompt.build(settings, date(2026, 11, 23), 4,
+                             [{"name": "Testlauf", "date": "2026-12-06", "priority": "C", "race_type": "run_10k"}],
+                             ctl=55.4, past_hours=[6.5, 7.0])
+    assert "Gewicht 72 kg" in text and "FTP 250 W" in text and "Fitness (CTL) aktuell 55" in text
+    assert text.count("- Woche ") == 4 and "Entlastungswoche" in text and "Soll " in text
+    assert "06.12.2026 Testlauf (C)" in text and "w=Einwärmen" in text and "Ernährung NICHT angeben" in text

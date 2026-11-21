@@ -407,9 +407,20 @@
         <h2>Trainingsplan importieren (JSON)</h2>
         <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
       </div>
+      <fieldset class="plan-ai">
+        <legend>1 · Plan von einer KI schreiben lassen (ChatGPT, Gemini, Claude …)</legend>
+        <p class="muted small">Der Auftrag enthält deine Schwellen, dein Saisonziel, die Soll-Stunden je Woche, Entlastungswochen,
+          dein Wochenmuster und das Format. In die KI einfügen, die Antwort unten einfügen – Ernährung rechnet die App selbst.</p>
+        <div class="row">
+          <label class="inline">Wochen <input type="number" id="plan-ai-weeks" min="1" max="8" value="4" style="width:4.5em"></label>
+          <button type="button" id="btn-plan-ai" class="primary small">KI-Auftrag kopieren</button>
+          <span id="plan-ai-state" class="muted small"></span>
+        </div>
+        <textarea id="plan-ai-text" rows="6" readonly hidden></textarea>
+      </fieldset>
       <p class="muted small">
-        Wochen 1–4 mit Workouts pro Tag (mon…sun). Workouts mit <code>steps</code> oder <code>template</code> +
-        <code>minutes</code>. Format siehe Beispiel und README („Plan-Import“).
+        2 · JSON einfügen oder Datei wählen (Format siehe Beispiel und README „Plan-Import“). Text um das JSON herum,
+        z. B. von der KI, wird ignoriert.
       </p>
       <div class="row">
         <input type="file" id="plan-file" accept=".json,application/json">

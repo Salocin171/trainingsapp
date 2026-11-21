@@ -247,6 +247,9 @@ dialog.wide { width: min(1000px, 96vw); }
 /* Plan-Import */
 #plan-json { width: 100%; font: 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace; margin: 8px 0; }
 #plan-preview .warn { color: var(--warn); }
+#plan-preview ul.warn { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; }
+.plan-ai { margin-top: 4px; }
+#plan-ai-text { width: 100%; margin-top: 8px; font: 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace; }
 .plan-weeks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-height: 320px; overflow: auto; margin-bottom: 10px; }
 .plan-week { background: var(--bg); border-radius: 8px; padding: 8px; font-size: 12px; }
 .plan-item { display: grid; grid-template-columns: 70px 1fr auto; gap: 6px; padding: 2px 0; }

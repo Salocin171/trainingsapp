@@ -197,7 +197,7 @@ Sekundendaten werden (noch) nicht geladen.
 ## Plan-Import (z. B. 4-Wochen-Block)
 
 **„Plan importieren“** → JSON-Datei wählen oder einfügen → **Prüfen** (Vorschau pro Woche, Fehler mit
-genauer Stelle) → **Importieren**. Optional ersetzt der Import geplante (nicht erledigte) Workouts im
+genauer Stelle, Warnung bei unbekannten Feldern) → **Importieren**. Optional ersetzt der Import geplante (nicht erledigte) Workouts im
 Zeitraum – auch auf den Geräten. Neue Workouts werden wie beim normalen Speichern automatisch übertragen,
 wenn in den Einstellungen „Automatisch senden“ aktiv ist. Ein vollständiges Beispiel liegt in
 `app/static/plan-example.json` (Knopf „Beispiel einfügen“).
@@ -209,12 +209,8 @@ wenn in den Einstellungen „Automatisch senden“ aktiv ist. Ein vollständiges
   "weeks": [
     { "week": 1, "days": {
       "tue": [
-        { "sport": "ride", "name": "Schwelle 4x8", "target": "power", "steps": [
-          { "kind": "warmup", "minutes": 15, "low": 50, "high": 75 },
-          { "repeat": 4, "steps": [
-            { "kind": "interval", "minutes": 8, "low": 97, "high": 102 },
-            { "kind": "recovery", "minutes": 4, "low": 50, "high": 55 } ] },
-          { "kind": "cooldown", "minutes": 10, "low": 50, "high": 65 } ] },
+        { "sport": "ride", "name": "Schwelle 4x8", "time": "07:00",
+          "steps": "w15@50-75, 4x(i8@97-102, r4@50-55), c10@50-65" },
         { "sport": "strength", "template": "stabi", "minutes": 40 } ],
       "sat": [ { "sport": "ride", "template": "long", "minutes": 210 } ]
     } }
@@ -231,15 +227,21 @@ wenn in den Einstellungen „Automatisch senden“ aktiv ist. Ein vollständiges
 | `sport` | `swim`, `ride`, `run`, `strength` (Stabi), `mobility` (Dehnen/Yoga), `other` |
 | `target` | `power` (% FTP), `pace` (% Schwellentempo bzw. CSS), `hr` (% LTHR) – Standard je Sport |
 | `template` + `minutes` | Vorlage statt Schritten: `recovery`, `endurance`, `long`, `race_pace`, `tempo`, `sweetspot`, `threshold`, `vo2max`, `openers`, `brick`, `stabi`, `mobility` |
-| `steps[]` | `kind` (`warmup`, `interval`, `recovery`, `steady`, `cooldown`), `minutes` oder `seconds`, `low`/`high` in % |
+| `name`, `description` | Name und Beschreibung (optional) |
+| `time` | Startzeit, z. B. `"07:00"` – steht dann vorne im Namen; daraus berechnet die Ernährung den Zeitpunkt |
+| `steps` (Kurzform) | `"w15@50-75, 4x(i8@97-102, r4@50-55), c10@50-65"` – `w` Einwärmen, `i` Intervall, `r` Erholung, `s` Konstant, `c` Ausfahren; Zahl = Minuten, `s` dahinter = Sekunden (`r20s`); `@von-bis` in %; `4x(…)` = Wiederholung. Spart gut 80 % Text gegenüber der Liste |
+| `steps[]` (Liste) | `kind` (`warmup`, `interval`, `recovery`, `steady`, `cooldown`), `minutes` oder `seconds`, `low`/`high` in % |
 | Wiederholung | `{ "repeat": 4, "steps": [ … ] }` |
+| `fueling` | optional: `{ "before": "…", "during": "90 g/h", "after": "…", "day": "6–10 g/kg" }` → KH-Block in der Beschreibung. **Weglassen** = die App berechnet Kohlenhydrate, Trinken und Eiweiß selbst |
 | `circuit` | Kraft/Stabi, Zirkel-Timer: `{ "work": 40, "rest": 20, "rounds": 3, "round_rest": 60, "exercises": ["Plank", { "name": "Split Squat", "reps": 8 }, { "name": "Wandsitz", "seconds": 45 }] }` (Sekunden, `rounds` 1–60; `reps` 0 = ohne feste Zahl; auch als Text `"Rudern \| 12 Wdh"`) |
 
-**Plan von einer KI erstellen lassen** – z. B. so fragen:
-
-> Erstelle mir einen 4-Wochen-Trainingsblock (3 Wochen Belastung, 1 Woche Entlastung) für die
-> Ironman-Vorbereitung, ca. 10 h/Woche, als JSON in genau diesem Format: *(Beispiel oben bzw.
-> `plan-example.json` einfügen)*. Intensitäten in % von FTP / Schwellentempo / CSS. Nur JSON ausgeben.
+**Plan von einer beliebigen KI schreiben lassen** (auch ohne Claude-Abo, z. B. ChatGPT oder Gemini):
+Im Import-Dialog **„KI-Auftrag kopieren“** → in die KI einfügen → Antwort zurück in das JSON-Feld einfügen
+(Text und ```` ```json ````-Rahmen drumherum stören nicht) → Prüfen → Importieren. Der Auftrag (ca. 700–900 Tokens)
+enthält, was Claude per MCP sonst selbst nachschlägt: Gewicht, Schwellen, Saisonziel, Fitness, Soll-Stunden und
+Blockfokus je Woche inkl. Entlastung und Hitzeeinheiten, Wochenmuster, Wettkämpfe, Zonen und das Kurzformat
+(`app/plan_prompt.py`, API: `GET /api/plan/prompt?weeks=4`). Ernährung muss die KI nicht schreiben – die rechnet die
+App für jede Einheit selbst.
 
 ## Claude-Zugriff per MCP
 
@@ -254,7 +256,8 @@ Der Server spricht mit der **laufenden** App über ihre API – die App muss als
 | `get_calendar`, `get_workout` | Workouts (mit Compliance/Feedback), Aktivitäten (Puls, NP, Zonen), Wettkämpfe |
 | `get_recommendations`, `accept_suggestion` | Vorschläge der nächsten 7 Tage, übernehmen |
 | `create_workout`, `update_workout`, `delete_workout` | Workouts bearbeiten (auch Zirkel-Timer: `circuit`), optional an Geräte senden (`send_to`) |
-| `import_plan` | JSON-Plan prüfen (`dry_run`, Standard) bzw. importieren |
+| `get_plan_brief` | Kompakter Auftrag für einen Block: Schwellen, Soll-Stunden je Woche, Wochenmuster, Wettkämpfe, Format |
+| `import_plan` | JSON-Plan prüfen (gibt `preview_id` zurück) bzw. mit `preview_id` importieren |
 | `get_analysis` | Garmin-Kennzahlen, Leistungskurve, Efficiency Factor, Zonen |
 | `set_activity_feedback` | RPE / Befinden / Notiz zu einer Aktivität |
 | `get_settings`, `update_settings`, `add_race`, `delete_race` | Schwellen, Wettkämpfe, Wochenstunden |
@@ -278,6 +281,10 @@ claude mcp list        # → trainingsapp … ✔ Connected
     "command": "/Users/DEIN-BENUTZERNAME/Trainingsapp/.venv/bin/python",
     "args": ["/Users/DEIN-BENUTZERNAME/Trainingsapp/app/mcp_server.py"] } } }
 ```
+
+**Tokens sparen beim Block planen:** `get_plan_brief` liefert alle Vorgaben in einem kompakten Text (statt
+`get_status` + `get_settings` + `get_calendar`). Schritte in der Kurzform schreiben. `import_plan` prüft und gibt eine
+`preview_id` zurück; danach nur `import_plan(preview_id=…)` – der Plan wird nicht ein zweites Mal gesendet.
 
 Neues Tool → Funktion mit `@server.tool(...)` in `app/mcp_server.py`, Docstring = Beschreibung für Claude.
 Erwartbare Fehler als `ToolError` werfen, sonst sieht Claude nur „Error executing tool“.

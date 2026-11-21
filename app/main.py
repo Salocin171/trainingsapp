@@ -2,13 +2,14 @@
     .venv/bin/uvicorn app.main:app --reload --port 8765
 """
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import analysis, compliance, config, conflicts, db, feedback, nutrition, periodization, plan_import, races, recommend, templates, volume
+from . import analysis, compliance, config, conflicts, db, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, volume
 from .load import compute_series, daily_tss
 from .sync import TARGETS, status as sync_status, supports
 from .workouts import summarize
@@ -207,9 +208,9 @@ class PlanIn(BaseModel):
     replace: bool = False        # geplante (nicht erledigte) Workouts im Zeitraum vorher löschen
 
 
-def _parse_plan(body: PlanIn):
+def _parse_plan(body: PlanIn, warnings: list | None = None):
     try:
-        return plan_import.parse(body.plan, date.today(), body.start)
+        return plan_import.parse(body.plan, date.today(), body.start, warnings)
     except plan_import.PlanError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -218,16 +219,47 @@ def _replaceable(first: date, last: date) -> list[dict]:
     return [w for w in db.list_workouts(first.isoformat(), last.isoformat()) if w.get("status") != "done"]
 
 
+# Geprüfte Pläne für den Import per Kennung (MCP: Plan nur einmal senden, dann mit preview_id bestätigen)
+_previews: dict[str, PlanIn] = {}
+
+
 @app.post("/api/plan/preview")
 def preview_plan(body: PlanIn):
-    workouts, first, last = _parse_plan(body)
+    warnings: list[str] = []
+    workouts, first, last = _parse_plan(body, warnings)
+    preview_id = uuid4().hex[:8]
+    _previews.clear()  # nur die letzte Vorschau merken
+    _previews[preview_id] = body
     return {"workouts": [summarize(w) for w in workouts], "start": first.isoformat(), "end": last.isoformat(),
-            "existing": len(_replaceable(first, last))}
+            "existing": len(_replaceable(first, last)), "warnings": warnings, "preview_id": preview_id}
+
+
+@app.post("/api/plan/import/{preview_id}")
+def import_previewed_plan(preview_id: str, replace: bool | None = None):
+    """Zuletzt geprüften Plan importieren, ohne ihn erneut zu senden."""
+    body = _previews.pop(preview_id, None)
+    if body is None:
+        raise HTTPException(404, "Vorschau nicht mehr vorhanden – Plan erneut prüfen")
+    return import_plan(body if replace is None else body.model_copy(update={"replace": replace}))
+
+
+@app.get("/api/plan/prompt", response_class=PlainTextResponse)
+def plan_prompt_text(start: str = "", weeks: int = 4):
+    """KI-Auftrag für einen Block (Text zum Kopieren in ChatGPT & Co.)."""
+    today = date.today()
+    first = periodization.monday(date.fromisoformat(start)) if start else plan_import.default_start(today)
+    settings = db.get_settings()
+    activities, tss = _load_context(today)
+    ctl = compute_series(tss, today - timedelta(days=1), today - timedelta(days=1))[-1]["ctl"] if tss else None
+    past = volume.weeks(settings, activities, [], today, before=4, after=0)[:-1] if activities else []
+    return plan_prompt.build(settings, first, max(1, min(weeks, 8)),
+                             conflicts.race_list(settings, db.list_races()), ctl, [w["done_hours"] for w in past])
 
 
 @app.post("/api/plan/import")
 def import_plan(body: PlanIn):
-    workouts, first, last = _parse_plan(body)
+    warnings: list[str] = []
+    workouts, first, last = _parse_plan(body, warnings)
     errors = []
     removed = 0
     if body.replace:
@@ -238,7 +270,7 @@ def import_plan(body: PlanIn):
         res = _store(w)
         errors += [f"{w['date']} {w['name']} → {k}: {v}" for k, v in res["errors"].items()]
     return {"created": len(workouts), "removed": removed, "start": first.isoformat(), "end": last.isoformat(),
-            "errors": errors}
+            "errors": errors, "warnings": warnings}
 
 
 # --- Vorlagen --------------------------------------------------------------
