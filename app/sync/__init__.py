@@ -1,11 +1,11 @@
 """Ziele für die Workout-Übertragung. Neues Ziel = Modul mit push()/remove() + Eintrag hier."""
-from . import garmin, google_calendar, intervals, zwift
+from . import garmin, intervals, maccal, zwift
 
 TARGETS = {
     "garmin": garmin,       # → Garmin-Uhr / -Radcomputer (über Garmin-Connect-Kalender)
     "intervals": intervals, # → Wahoo (über intervals.icu)
     "zwift": zwift,         # → Zwift (lokale .zwo-Datei)
-    "google": google_calendar,  # → Google Kalender (z. B. Kalender „Sport“)
+    "calendar": maccal,     # → Kalender-App des Macs (iCloud, Outlook … – je nach gewähltem Kalender)
 }
 
 
@@ -24,4 +24,4 @@ def status() -> dict:
     except RuntimeError:
         zwift_ok = False
     return {"garmin": garmin.is_connected(), "intervals": intervals.is_connected(), "zwift": zwift_ok,
-            "google": google_calendar.is_connected()}
+            "calendar": maccal.is_connected()}

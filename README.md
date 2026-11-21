@@ -27,7 +27,7 @@ Läuft lokal auf deinem Mac (Python-Server + Browser-Oberfläche). Nur für macO
 **Updates:** **`Update.command`** doppelklicken – holt die neueste Version und startet die App neu.
 
 **Deine Daten** gehören nur dir und bleiben auf deinem Mac: Trainingsdaten und Einstellungen in `data/training.db`,
-Anmeldungen (Garmin, Google) in `~/.trainingsapp/`. Beides ist nicht im Git – Updates überschreiben es nicht, und
+Anmeldungen (Garmin) in `~/.trainingsapp/`. Beides ist nicht im Git – Updates überschreiben es nicht, und
 niemand sonst sieht es. **Sichern:** `data/training.db` kopieren (z. B. in die iCloud). Ein zweites Profil auf
 demselben Mac (z. B. zum Ausprobieren): `TRAININGSAPP_DATA_DIR=~/Trainingsapp-Test ./Trainingsapp.command`.
 
@@ -67,42 +67,23 @@ den Server neu, Änderungen in `app/static/` brauchen nur einen Browser-Reload.
 | **Wahoo** (z. B. Bolt) | Über [intervals.icu](https://intervals.icu) (kostenlos). intervals.icu schickt geplante Workouts an Wahoo, das Gerät lädt sie beim Sync. | 1. intervals.icu-Konto anlegen, unter *Settings → Connections* Wahoo verbinden und „Upload planned workouts“ aktivieren. 2. API-Key + Athleten-ID (*Settings → Developer Settings*) in `.env` eintragen (Vorlage: `.env.example`). |
 | **Zwift** | `.zwo`-Datei im Zwift-Ordner `~/Documents/Zwift/Workouts/<ID>/`. Erscheint in Zwift unter *Custom Workouts* (Datum steht vorne im Namen). | Nichts – der Ordner wird automatisch gefunden. |
 
-### Google Kalender (optional, eher für Technikfans – ca. 10 Minuten)
+### Kalender (iCloud, Outlook & Co. – über die Kalender-App des Macs)
 
-Geplante Workouts landen als ganztägige Termine im Kalender „Sport“ (Name in den Einstellungen änderbar) –
-Titel „Sportart – Programm“ (z. B. „Laufen – Locker 40“, lange Programmnamen nur in der Beschreibung),
-Beschreibung mit allen Schritten in Watt / Pace / Puls, Dauer und TSS. Verschieben,
-Ändern und Löschen in der App wird übernommen. Google erlaubt das nur mit eigener Anmeldung:
+Geplante Workouts landen als ganztägige Termine in einem Kalender deiner Wahl – Titel „Sportart – Programm“
+(z. B. „Laufen – Locker 40“, lange Programmnamen nur in der Beschreibung), Beschreibung mit allen Schritten in
+Watt / Pace / Puls, Dauer und TSS. Verschieben, Ändern und Löschen in der App wird übernommen.
 
-1. <https://console.cloud.google.com> → oben **Projekt auswählen → Neues Projekt** „Trainingsapp“.
-2. **APIs & Dienste → Bibliothek** → „Google Calendar API“ → **Aktivieren**.
-3. **Google Auth Platform** (bzw. „OAuth-Zustimmungsbildschirm“) → **Jetzt starten**:
-   App-Name „Trainingsapp“, deine E-Mail, Zielgruppe **Extern**, Kontakt-E-Mail → Erstellen.
-4. **Zielgruppe → App veröffentlichen** („In Produktion“). Wichtig: Im Status „Test“ läuft die Anmeldung
-   nach 7 Tagen ab. Eine Prüfung durch Google ist für die eigene Nutzung nicht nötig.
-5. **Clients → Client erstellen** → Anwendungstyp **Desktop-App** → Erstellen → **JSON herunterladen**.
-6. Datei an den richtigen Ort legen:
-   ```bash
-   mkdir -p ~/.trainingsapp && mv ~/Downloads/client_secret_*.json ~/.trainingsapp/google_client_secret.json
-   ```
-7. Anmelden: `.venv/bin/python -m app.google_login` → Browser öffnet sich → Google-Konto wählen.
-   Bei „Google hat diese App nicht überprüft“ → **Erweitert → Weiter zu Trainingsapp** → Zugriff erlauben.
-   Das Skript bestätigt: „✔ Kalender „Sport“ gefunden“.
-8. In der App: **Einstellungen → Automatisch senden → Google Kalender** und einmal
-   **„Geplante Workouts jetzt an Google senden“** für die bereits geplanten Workouts.
+Die App schreibt in die **Kalender-App des Macs**; liegt der gewählte Kalender bei iCloud oder einem anderen Konto
+(*Systemeinstellungen → Internetaccounts*), synchronisiert macOS ihn selbst dorthin und aufs iPhone. Keine
+Cloud-Einrichtung nötig:
 
-Zugangsdaten und Token liegen in `~/.trainingsapp/` (nicht im Projekt, nicht im Git).
+1. **Einstellungen → Automatisch senden → Kalender** anhaken und rechts den Kalender wählen (z. B. „Sport“ in iCloud;
+   am besten ein eigener Kalender nur für Trainings).
+2. Beim ersten Mal fragt macOS: **„… möchte „Kalender“ steuern“ → OK.** Verpasst? *Systemeinstellungen → Datenschutz &
+   Sicherheit → Automation* → beim Programm (Terminal bzw. „Python“ beim Autostart) **Kalender** einschalten.
+3. Einmal **„Geplante Workouts jetzt eintragen“** für die bereits geplanten Workouts.
 
-**Alternative ohne Zustimmungsbildschirm (Dienstkonto):** Falls Google das Veröffentlichen oder Testnutzer verweigert.
-Das Dienstkonto läuft nicht ab und darf nur den freigegebenen Kalender ändern.
-
-1. Google Calendar API aktivieren (Schritt 2), dann **IAM und Verwaltung → Dienstkonten → Dienstkonto erstellen**, Name „trainingsapp“, keine Rollen.
-2. Beim Dienstkonto **Schlüssel → Schlüssel hinzufügen → Neuen Schlüssel erstellen → JSON**, Datei speichern als
-   `~/.trainingsapp/google_service_account.json` (hat Vorrang vor der OAuth-Anmeldung).
-3. In Google Kalender: **Sport → Einstellungen und Freigabe → Für bestimmte Personen freigeben** → E-Mail des Dienstkontos
-   (`…@….iam.gserviceaccount.com`) mit **„Änderungen an Terminen vornehmen“**.
-4. In der App unter **Einstellungen → Kalendername** die **Kalender-ID** eintragen (steht in den Kalendereinstellungen unter
-   „Kalender integrieren“, endet auf `@group.calendar.google.com`) – das Dienstkonto kennt keine Kalendernamen.
+Termine erscheinen auf anderen Geräten, sobald der Mac sie synchronisiert hat (er muss dafür an sein).
 
 Warum nicht direkt zu Wahoo? Die Wahoo-Cloud-API braucht einen freigeschalteten
 Entwickler-Account. intervals.icu ist offiziell angebunden und liefert zusätzlich
@@ -243,6 +224,16 @@ Blockfokus je Woche inkl. Entlastung und Hitzeeinheiten, Wochenmuster, Wettkämp
 (`app/plan_prompt.py`, API: `GET /api/plan/prompt?weeks=4`). Ernährung muss die KI nicht schreiben – die rechnet die
 App für jede Einheit selbst.
 
+**Freie Zeiten statt festem Wochenmuster:** Ein Wochenmuster ist optional. Im Feld *„Wann kannst du (nicht)?“*
+(Import-Dialog, Einrichtung, Einstellungen) stehen feste Zeiten und Wünsche, z. B. „Mo–Fr erst ab 17 Uhr · Schwimmbad
+nur Di und Do früh“ – der Text wird gemerkt. Zusätzlich lassen sich Kalender als **iCal-Link** hinterlegen (iCloud: Kalender-App → Rechtsklick auf den Kalender →
+Kalender teilen → *Öffentlicher Kalender* → Link kopieren; Outlook: Kalender veröffentlichen → ICS-Link; den eigenen
+Trainingskalender nicht eintragen, sonst blockieren die Trainings selbst die Zeiten). Die App liest daraus die belegten Zeiten des Blocks
+(inkl. Wiederholungen und Ausnahmen) und schreibt **nur die Uhrzeiten** in den Auftrag, keine Termintitel; der Link
+bleibt in der lokalen Datenbank (`app/availability.py`). Ohne eigenes Wochenmuster bekommt die KI Regeln zur
+Verteilung (Häufigkeit je Sport, Abstand harter Einheiten, Ruhetag) und legt jede Einheit mit `time` in ein freies
+Zeitfenster. Ein vom Standard abweichendes Wochenmuster wird als Orientierung mitgeschickt.
+
 ## Claude-Zugriff per MCP
 
 `app/mcp_server.py` stellt die App als MCP-Server bereit, damit Claude sie direkt bedienen kann
@@ -261,7 +252,7 @@ Der Server spricht mit der **laufenden** App über ihre API – die App muss als
 | `get_analysis` | Garmin-Kennzahlen, Leistungskurve, Efficiency Factor, Zonen |
 | `set_activity_feedback` | RPE / Befinden / Notiz zu einer Aktivität |
 | `get_settings`, `update_settings`, `add_race`, `delete_race` | Schwellen, Wettkämpfe, Wochenstunden |
-| `send_planned_workouts` | Alle geplanten Workouts an Garmin / Wahoo / Zwift / Google Kalender senden |
+| `send_planned_workouts` | Alle geplanten Workouts an Garmin / Wahoo / Zwift / Kalender senden |
 | `check_race_conflicts`, `resolve_race_conflicts` | Workouts, die nicht zu Wettkämpfen passen – prüfen / Vorschläge übernehmen |
 | `import_activities` | Aktivitäten von Garmin nachladen |
 
@@ -349,13 +340,14 @@ app/
   feedback.py      RPE/Befinden auswerten (Regeln für die Vorschläge)
   analysis.py      Efficiency Factor, Zonen pro Woche, Leistungskurve
   nutrition.py     Verpflegung vor/während/nach einer Einheit (KH, Trinken, Protein)
+  plan_prompt.py   KI-Auftrag für einen Trainingsblock (auch für Claude: get_plan_brief)
+  availability.py  belegte Zeiten aus iCal-Links (nur Uhrzeiten)
 scripts/ensure_venv.sh  Python ab 3.12 finden, .venv anlegen, Pakete installieren (für die .command-Dateien)
   races.py         Wettkampfdistanzen: Mini-Taper, Erholung, Laufpause
   conflicts.py     Geplante Workouts vs. Wettkämpfe (mit Änderungsvorschlag)
   mcp_server.py    MCP-Server für Claude (Tools über die API der laufenden App)
-  sync/            garmin.py, intervals.py, zwift.py, google_calendar.py – je push() / remove()
+  sync/            garmin.py, intervals.py, zwift.py, maccal.py (Kalender-App) – je push() / remove()
   garmin_login.py  einmalige Garmin-Anmeldung
-  google_login.py  einmalige Google-Anmeldung (Kalender-Sync)
   static/          Oberfläche (index.html, app.js, styles.css, FullCalendar)
 tests/             pytest: .venv/bin/python -m pytest
 ```

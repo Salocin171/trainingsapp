@@ -607,78 +607,90 @@ def test_mcp_conflict_tools(tmp_path, monkeypatch):
     assert db.get_workout(w["id"])["template"] == "endurance"
 
 
-def test_google_calendar_event_body():
-    from app.sync import google_calendar as gc
+def test_calendar_event_text():
+    from app.sync import maccal
 
     w = {"id": 5, "date": "2026-11-03", "sport": "ride", "target": "power", "name": "Sweet Spot 3x12",
          "description": "Knapp unter der Schwelle.",
          "steps": [step("warmup", 15, 50, 75), repeat(3, step("interval", 12, 88, 93), step("recovery", 5, 50, 55))]}
-    body = gc.event_body(w, {**SETTINGS, "ftp": 300})
-    assert body["summary"] == "Radfahren – Sweet Spot 3x12"
-    assert "1:06 h" in body["description"] and not body["description"].startswith("Sweet Spot")
-    assert body["start"] == {"date": "2026-11-03"} and body["end"] == {"date": "2026-11-04"}
-    assert "• 12 min Intervall – 264–279 W" in body["description"] and "3×" in body["description"]
+    title, text = maccal.event_text(w, {**SETTINGS, "ftp": 300})
+    assert title == "Radfahren – Sweet Spot 3x12"
+    assert "1:06 h" in text and not text.startswith("Sweet Spot")
+    assert "• 12 min Intervall – 264–279 W" in text and "3×" in text
     run = {**w, "sport": "run", "target": "pace", "steps": [step("steady", 30, 80, 80)]}
-    assert "5:15 /km" in gc.event_body(run, {**SETTINGS, "threshold_pace": 252})["description"]
+    assert "5:15 /km" in maccal.event_text(run, {**SETTINGS, "threshold_pace": 252})[1]
     swim = {**w, "sport": "swim", "target": "pace", "steps": [step("interval", 4, 100, 100), step("recovery", 0.5, 0)]}
-    text = gc.event_body(swim, {**SETTINGS, "css": 86})["description"]
+    text = maccal.event_text(swim, {**SETTINGS, "css": 86})[1]
     assert "1:26 /100 m" in text and "• 30 s Erholung\n" in text + "\n"
 
 
-def test_google_calendar_title_short_program_long_in_description():
-    from app.sync import google_calendar as gc
+def test_calendar_title_short_program_long_in_description():
+    from app.sync import maccal
 
-    def body(sport, name):
-        return gc.event_body({"date": "2026-11-03", "sport": sport, "name": name, "steps": []}, SETTINGS)
+    def text(sport, name):
+        return maccal.event_text({"date": "2026-11-03", "sport": sport, "name": name, "steps": []}, SETTINGS)
 
-    assert body("run", "Locker 40")["summary"] == "Laufen – Locker 40"
-    long = body("ride", "FTP-Test 20 min (nur bei HRV ok, sonst 75 min Z2)")
-    assert long["summary"] == "Radfahren – FTP-Test 20 min"
-    assert long["description"].startswith("FTP-Test 20 min (nur bei HRV ok, sonst 75 min Z2)")
-    swim = body("swim", "Technik & Speed: 3x(4x100 @103-108%) + Pull + 8x50")
-    assert swim["summary"] == "Schwimmen – Technik & Speed" and "3x(4x100" in swim["description"]
-    no_split = body("run", "10x30 s @ 3:45-3:55/km / 90 s Traben")
-    assert no_split["summary"] == "Laufen" and no_split["description"].startswith("10x30 s @")
-    assert body("strength", "Stabi / Kraft")["summary"] == "Stabi / Kraft"
+    assert text("run", "Locker 40")[0] == "Laufen – Locker 40"
+    title, desc = text("ride", "FTP-Test 20 min (nur bei HRV ok, sonst 75 min Z2)")
+    assert title == "Radfahren – FTP-Test 20 min" and desc.startswith("FTP-Test 20 min (nur bei HRV ok, sonst 75 min Z2)")
+    title, desc = text("swim", "Technik & Speed: 3x(4x100 @103-108%) + Pull + 8x50")
+    assert title == "Schwimmen – Technik & Speed" and "3x(4x100" in desc
+    title, desc = text("run", "10x30 s @ 3:45-3:55/km / 90 s Traben")
+    assert title == "Laufen" and desc.startswith("10x30 s @")
+    assert text("strength", "Stabi / Kraft")[0] == "Stabi / Kraft"
 
 
-def test_google_calendar_push_update_remove(monkeypatch):
-    import httpx
-    from app.sync import google_calendar as gc
+def test_calendar_push_update_move_remove(monkeypatch):
+    from app.sync import maccal
 
     calls = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append((request.method, request.url.path))
-        if request.url.path.endswith("/calendarList"):
-            return httpx.Response(200, json={"items": [{"id": "sport@group", "summary": "Sport"}]})
-        if request.method in ("POST", "PUT"):
-            return httpx.Response(200, json={"id": "ev1"})
-        return httpx.Response(204)
+    def fake(script, *args, timeout=120):
+        calls.append((script, args))
+        return "UID-1" if script is maccal._PUSH else ""
 
-    monkeypatch.setattr(gc, "_http", lambda: httpx.Client(base_url=gc.API, transport=httpx.MockTransport(handler)))
-    monkeypatch.setattr(gc, "is_connected", lambda: True)
-    gc._calendar_ids.clear()
+    monkeypatch.setattr(maccal, "_osascript", fake)
+    monkeypatch.setattr(maccal.sys, "platform", "darwin")
     w = {"id": 1, "date": "2026-11-03", "sport": "run", "name": "Locker", "steps": [step("steady", 40, 75)]}
-    first = gc.push(w, SETTINGS)
-    assert first == {"event_id": "ev1", "calendar_id": "sport@group"}
-    gc.push({**w, "sync": {"google": first}}, SETTINGS)
-    gc.remove({**w, "sync": {"google": first}})
-    assert [c[0] for c in calls] == ["GET", "POST", "PUT", "DELETE"]
-    assert calls[2][1] == "/calendar/v3/calendars/sport@group/events/ev1"
+    settings = {**SETTINGS, "mac_calendar": "Trainingsplan"}
+    first = maccal.push(w, settings)
+    assert first == {"uid": "UID-1", "calendar": "Trainingsplan"}
+    assert calls[0][1][:3] == ("Trainingsplan", "Trainingsplan", "") and calls[0][1][-3:] == ("2026", "11", "3")
+    maccal.push({**w, "sync": {"calendar": first}}, settings)            # ändern: gleiche uid
+    assert calls[1][1][2] == "UID-1"
+    maccal.push({**w, "sync": {"calendar": first}}, {**settings, "mac_calendar": "Sport"})  # Kalender gewechselt
+    assert calls[2][1][:3] == ("Sport", "Trainingsplan", "UID-1")
+    maccal.remove({**w, "sync": {"calendar": first}})
+    assert calls[3] == (maccal._REMOVE, ("Trainingsplan", "UID-1"))
+    with pytest.raises(RuntimeError, match="Kein Kalender gewählt"):
+        maccal.push(w, {**SETTINGS, "mac_calendar": ""})
 
 
-def test_google_calendar_id_used_directly_and_service_account_connects(tmp_path, monkeypatch):
-    """Dienstkonto: Kalender-ID gilt ohne Abfrage der Kalenderliste, der Schlüssel allein gilt als angemeldet."""
-    from app import config
-    from app.sync import google_calendar as gc
+def test_calendar_pauses_after_missing_permission(monkeypatch):
+    """Fehlt die macOS-Berechtigung, hängt nicht jedes Speichern: Pause, Auto-Sync überspringt, Auswahl fragt neu."""
+    import subprocess
 
-    assert gc.calendar_id(None, "abc@group.calendar.google.com") == "abc@group.calendar.google.com"
-    monkeypatch.setattr(config, "GOOGLE_TOKEN_FILE", tmp_path / "token.json")
-    monkeypatch.setattr(config, "GOOGLE_SERVICE_ACCOUNT_FILE", tmp_path / "sa.json")
-    assert not gc.is_connected()
-    (tmp_path / "sa.json").write_text("{}")
-    assert gc.is_connected()
+    from app.sync import maccal
+
+    runs = []
+
+    def hang(cmd, **kw):
+        runs.append(cmd)
+        raise subprocess.TimeoutExpired(cmd, kw.get("timeout"))
+
+    monkeypatch.setattr(maccal.sys, "platform", "darwin")
+    monkeypatch.setattr(maccal.subprocess, "run", hang)
+    monkeypatch.setattr(maccal, "_blocked_until", 0.0)
+    w = {"id": 1, "date": "2026-11-03", "sport": "run", "name": "Locker", "steps": [step("steady", 40, 75)]}
+    with pytest.raises(RuntimeError, match="antwortet nicht"):
+        maccal.push(w, {**SETTINGS, "mac_calendar": "Trainingsplan"})
+    with pytest.raises(RuntimeError, match="antwortet nicht"):   # zweiter Versuch wartet nicht erneut
+        maccal.push(w, {**SETTINGS, "mac_calendar": "Trainingsplan"})
+    assert len(runs) == 1
+    monkeypatch.setattr(maccal.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "Trainingsplan\ttrue\n", ""))
+    assert maccal.calendars() == [{"name": "Trainingsplan", "writable": True}]  # Auswahl fragt trotz Pause neu
+    assert maccal._blocked_until == 0.0
 
 
 def test_bulk_sync_skips_done_and_already_synced(tmp_path, monkeypatch):
@@ -688,13 +700,13 @@ def test_bulk_sync_skips_done_and_already_synced(tmp_path, monkeypatch):
 
     db.set_db_path(tmp_path / "bulk.db")
     sent = []
-    monkeypatch.setitem(TARGETS, "google", type("Fake", (), {
-        "push": staticmethod(lambda w, s: sent.append(w["name"]) or {"event_id": w["name"]}),
+    monkeypatch.setitem(TARGETS, "calendar", type("Fake", (), {
+        "push": staticmethod(lambda w, s: sent.append(w["name"]) or {"uid": w["name"]}),
         "remove": staticmethod(lambda w: None), "is_connected": staticmethod(lambda: True)}))
     today = date.today().isoformat()
-    for name, extra in (("neu", {}), ("erledigt", {"status": "done"}), ("schon da", {"sync": {"google": {"event_id": "x"}}})):
+    for name, extra in (("neu", {}), ("erledigt", {"status": "done"}), ("schon da", {"sync": {"calendar": {"uid": "x"}}})):
         db.save_workout({"date": today, "name": name, "sport": "run", "steps": [step("steady", 30, 75)], "status": "planned", **extra})
-    res = TestClient(main.app).post("/api/sync/bulk", json={"target": "google"}).json()
+    res = TestClient(main.app).post("/api/sync/bulk", json={"target": "calendar"}).json()
     assert res == {"sent": 1, "errors": []} and sent == ["neu"]
 
 
@@ -705,14 +717,14 @@ def test_auto_sync_skips_targets_not_set_up(tmp_path, monkeypatch):
     from app.sync import TARGETS
 
     db.set_db_path(tmp_path / "auto.db")
-    db.save_settings({"auto_sync": ["google", "intervals"]})
+    db.save_settings({"auto_sync": ["calendar", "intervals"]})
     sent = []
-    monkeypatch.setitem(TARGETS, "google", type("Fake", (), {
-        "push": staticmethod(lambda w, s: sent.append(w["name"]) or {"event_id": "1"}),
+    monkeypatch.setitem(TARGETS, "calendar", type("Fake", (), {
+        "push": staticmethod(lambda w, s: sent.append(w["name"]) or {"uid": "1"}),
         "remove": staticmethod(lambda w: None), "is_connected": staticmethod(lambda: True)}))
-    monkeypatch.setattr(main, "sync_status", lambda: {"google": True, "intervals": False})
+    monkeypatch.setattr(main, "sync_status", lambda: {"calendar": True, "intervals": False})
     res = TestClient(main.app).post("/api/workouts", json={"date": "2026-11-03", "name": "Lauf", "sport": "run"}).json()
-    assert res["errors"] == {} and sent == ["Lauf"] and list(res["workout"]["sync"]) == ["google"]
+    assert res["errors"] == {} and sent == ["Lauf"] and list(res["workout"]["sync"]) == ["calendar"]
 
 
 # --- Ernährung vor/während/nach ------------------------------------------------
@@ -878,3 +890,73 @@ def test_plan_prompt_contains_targets_pattern_and_format():
     assert "Gewicht 72 kg" in text and "FTP 250 W" in text and "Fitness (CTL) aktuell 55" in text
     assert text.count("- Woche ") == 4 and "Entlastungswoche" in text and "Soll " in text
     assert "06.12.2026 Testlauf (C)" in text and "w=Einwärmen" in text and "Ernährung NICHT angeben" in text
+
+
+ICS = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:vl1
+SUMMARY:Vorlesung Geheim
+DTSTART;TZID=Europe/Berlin:20261124T100000
+DTEND;TZID=Europe/Berlin:20261124T120000
+RRULE:FREQ=WEEKLY;COUNT=4
+EXDATE;TZID=Europe/Berlin:20261208T100000
+END:VEVENT
+BEGIN:VEVENT
+UID:vl2
+DTSTART;TZID=Europe/Berlin:20261124T113000
+DTEND;TZID=Europe/Berlin:20261124T130000
+END:VEVENT
+BEGIN:VEVENT
+UID:frei
+DTSTART;TZID=Europe/Berlin:20261125T080000
+DTEND;TZID=Europe/Berlin:20261125T090000
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:reise
+DTSTART;VALUE=DATE:20261202
+DTEND;VALUE=DATE:20261204
+END:VEVENT
+BEGIN:VEVENT
+UID:erinnerung
+SUMMARY:Abgabe
+DTSTART;VALUE=DATE:20261126
+DTEND;VALUE=DATE:20261127
+END:VEVENT
+BEGIN:VEVENT
+UID:nacht
+DTSTART:20261127T220000Z
+DTEND:20261128T010000Z
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+def test_busy_times_from_ical():
+    from app import availability
+
+    busy = availability.busy_from_ics(ICS, date(2026, 11, 23), date(2026, 12, 20))
+    assert busy[date(2026, 11, 24)] == [("10:00", "13:00")]          # überlappende Termine zusammengefasst
+    assert busy[date(2026, 12, 1)] == [("10:00", "12:00")]           # Wiederholung
+    assert date(2026, 12, 8) not in busy                              # Ausnahme (EXDATE)
+    assert busy[date(2026, 12, 15)] == [("10:00", "12:00")]
+    assert date(2026, 11, 25) not in busy                             # als „frei“ markiert
+    assert busy[date(2026, 12, 2)] == busy[date(2026, 12, 3)] == ["ganztägig"] and date(2026, 12, 4) not in busy
+    assert date(2026, 11, 26) not in busy                             # eintägige Erinnerung blockiert nicht
+    assert busy[date(2026, 11, 27)] == [("23:00", "23:59")] and busy[date(2026, 11, 28)] == [("00:00", "02:00")]
+
+
+def test_plan_prompt_without_own_pattern_uses_free_times():
+    from app import plan_prompt
+
+    busy = {date(2026, 11, 24): [("10:00", "13:00")], date(2026, 12, 2): ["ganztägig"], date(2027, 1, 5): ["ganztägig"]}
+    text = plan_prompt.build(SETTINGS, date(2026, 11, 23), 2, [], busy=busy, notes="Schwimmbad nur Di früh",
+                             default_pattern=db.DEFAULT_SETTINGS["week_pattern"])
+    assert "Mein übliches Wochenmuster" not in text and "Kein festes Wochenmuster" in text
+    assert "Schwimmbad nur Di früh" in text and "- Di 24.11.: 10:00–13:00" in text and "- Mi 02.12.: ganztägig" in text
+    assert "05.01." not in text                                        # außerhalb des Blocks
+    own = plan_prompt.build({**SETTINGS, "week_pattern": {"mon": [{"sport": "run", "type": "easy"}]}}, date(2026, 11, 23),
+                            1, [], default_pattern=db.DEFAULT_SETTINGS["week_pattern"])
+    assert "Mein übliches Wochenmuster" in own and "Mo: Laufen locker" in own and "Wann ich trainieren kann" not in own

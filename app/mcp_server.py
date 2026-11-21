@@ -198,6 +198,7 @@ def get_settings() -> dict:
     Wettkampf (goal_name, goal_date, race_type), week_hours, recovery_every, target_ctl, week_pattern, auto_sync."""
     s = _api("GET", "/api/settings")
     s.pop("race_plan", None)
+    s["calendar_ics"] = f"{len(s.get('calendar_ics') or [])} Kalender hinterlegt"  # Links sind geheim
     return {**s, "b_c_races": _api("GET", "/api/races")}
 
 
@@ -223,7 +224,7 @@ def create_workout(date: str, sport: str, name: str = "", description: str = "",
             {"name": "Wandsitz", "seconds": 45}]} – Sekunden, rounds 1–60, eine Runde = alle Übungen einmal.
             Übung als Text = Dauer "work"; "seconds" = eigene Dauer; "reps" = Wiederholungen, weiter per „Fertig“
             ("reps": 0 = ohne feste Zahl, z. B. bis kurz vor Versagen). Hinweise wie Tempo gehören in den Namen.
-    send_to: z. B. ["garmin", "intervals", "zwift", "google"] (google = Google Kalender) – nur auf Wunsch des Nutzers.
+    send_to: z. B. ["garmin", "intervals", "zwift", "calendar"] (calendar = Kalender-App des Macs) – nur auf Wunsch des Nutzers.
     """
     raw = {"sport": sport, "name": name, "description": description, "minutes": minutes}
     if target:
@@ -335,11 +336,14 @@ def import_plan(plan: dict | None = None, start: str = "", replace: bool = False
 
 
 @server.tool(annotations=READ)
-def get_plan_brief(start: str = "", weeks: int = 4) -> str:
+def get_plan_brief(start: str = "", weeks: int = 4, notes: str = "") -> str:
     """Kompakter Auftragstext für einen Trainingsblock: Schwellen, Gewicht, Saisonziel, Soll-Stunden und Blockfokus
-    je Woche, Wochenmuster, Wettkämpfe, Zonen und das Kurzformat. Ersetzt get_status + get_settings beim Planen
-    eines Blocks. start = Montag (Standard: nächster Montag), weeks 1–8."""
-    return _api("GET", "/api/plan/prompt", params={"start": start, "weeks": weeks}, text=True)
+    je Woche, eigenes Wochenmuster (falls gesetzt), Verfügbarkeit und belegte Zeiten aus den hinterlegten Kalendern
+    (nur Uhrzeiten), Wettkämpfe, Zonen und das Kurzformat. Ersetzt get_status + get_settings (und das Abfragen von
+    Kalenderterminen) beim Planen eines Blocks. start = Montag (Standard: nächster Montag), weeks 1–8,
+    notes = zusätzliche Angaben zur Verfügbarkeit (sonst die gespeicherten)."""
+    params = {"start": start, "weeks": weeks, **({"notes": notes} if notes else {})}
+    return _api("GET", "/api/plan/prompt", params=params, text=True)
 
 
 @server.tool(annotations=WRITE)
@@ -351,7 +355,7 @@ def set_activity_feedback(activity_id: str, rpe: float | None = None, feel: int 
 
 SETTABLE = {"ftp", "lthr_run", "lthr_ride", "max_hr", "threshold_pace", "css", "weight", "sweat_rate", "goal_name", "goal_date",
             "race_type", "week_hours", "recovery_every", "cycle_start", "taper_weeks", "target_ctl", "week_pattern",
-            "auto_sync", "garmin_profile", "google_calendar"}
+            "auto_sync", "garmin_profile", "mac_calendar", "availability", "calendar_ics"}
 
 
 @server.tool(annotations=WRITE)
@@ -360,7 +364,7 @@ def update_settings(values: dict) -> dict:
     Erlaubt: ftp, lthr_run, lthr_ride, max_hr, threshold_pace (s/km), css (s/100 m), weight, sweat_rate (l/h), goal_name, goal_date,
     race_type (ironman|half|other), week_hours, recovery_every, cycle_start (Montag der 1. Belastungswoche, "" = vom
     Wettkampf rückwärts), taper_weeks (0 = Standard), target_ctl, week_pattern, auto_sync (garmin, intervals, zwift,
-    google), garmin_profile, google_calendar (Name des Google-Kalenders, Standard "Sport").
+    calendar), garmin_profile, mac_calendar (Name des Kalenders in der Kalender-App des Macs für Trainings).
     Achtung: Mit garmin_profile=True überschreibt Garmin FTP/LTHR/Schwellentempo beim nächsten Öffnen."""
     unknown = set(values) - SETTABLE
     if unknown:
@@ -386,7 +390,7 @@ def delete_race(race_id: int) -> dict:
 @server.tool(annotations=WRITE)
 def send_planned_workouts(target: str, days: int = 120) -> dict:
     """Alle geplanten, noch nicht übertragenen Workouts der nächsten `days` Tage an ein Ziel senden:
-    garmin, intervals (→ Wahoo), zwift oder google (Google Kalender). Nur auf Wunsch des Nutzers."""
+    garmin, intervals (→ Wahoo), zwift oder calendar (Kalender-App des Macs). Nur auf Wunsch des Nutzers."""
     return _api("POST", "/api/sync/bulk", json={"target": target, "days": days})
 
 

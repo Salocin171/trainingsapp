@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import analysis, compliance, config, conflicts, db, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, volume
+from . import analysis, compliance, config, conflicts, db, availability, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, volume
 from .load import compute_series, daily_tss
 from .sync import TARGETS, status as sync_status, supports
 from .workouts import summarize
@@ -243,17 +243,41 @@ def import_previewed_plan(preview_id: str, replace: bool | None = None):
     return import_plan(body if replace is None else body.model_copy(update={"replace": replace}))
 
 
-@app.get("/api/plan/prompt", response_class=PlainTextResponse)
-def plan_prompt_text(start: str = "", weeks: int = 4):
-    """KI-Auftrag für einen Block (Text zum Kopieren in ChatGPT & Co.)."""
+def _plan_prompt(start: str, weeks: int, notes: str | None) -> tuple[str, list[str], int]:
     today = date.today()
     first = periodization.monday(date.fromisoformat(start)) if start else plan_import.default_start(today)
+    weeks = max(1, min(weeks, 8))
     settings = db.get_settings()
     activities, tss = _load_context(today)
     ctl = compute_series(tss, today - timedelta(days=1), today - timedelta(days=1))[-1]["ctl"] if tss else None
     past = volume.weeks(settings, activities, [], today, before=4, after=0)[:-1] if activities else []
-    return plan_prompt.build(settings, first, max(1, min(weeks, 8)),
-                             conflicts.race_list(settings, db.list_races()), ctl, [w["done_hours"] for w in past])
+    busy, errors = availability.busy(settings.get("calendar_ics") or [], first, first + timedelta(weeks=weeks, days=-1))
+    text = plan_prompt.build(settings, first, weeks, conflicts.race_list(settings, db.list_races()), ctl,
+                             [w["done_hours"] for w in past], busy,
+                             settings.get("availability", "") if notes is None else notes,
+                             db.DEFAULT_SETTINGS["week_pattern"])
+    return text, errors, len(busy)
+
+
+@app.get("/api/plan/prompt", response_class=PlainTextResponse)
+def plan_prompt_text(start: str = "", weeks: int = 4, notes: str | None = None):
+    """KI-Auftrag für einen Block (Text). notes ergänzt bzw. ersetzt die gespeicherte Verfügbarkeit."""
+    text, errors, _ = _plan_prompt(start, weeks, notes)
+    return text + ("\n\n(Hinweis der App: " + "; ".join(errors) + ")" if errors else "")
+
+
+class PromptIn(BaseModel):
+    start: str = ""
+    weeks: int = 4
+    notes: str = ""
+
+
+@app.post("/api/plan/prompt")
+def plan_prompt_for_ui(body: PromptIn):
+    """Für den Import-Dialog: Verfügbarkeit merken und Auftrag samt Kalender-Status liefern."""
+    db.save_settings({"availability": body.notes.strip()})
+    text, errors, busy_days = _plan_prompt(body.start, body.weeks, body.notes)
+    return {"text": text, "errors": errors, "busy_days": busy_days}
 
 
 @app.post("/api/plan/import")
@@ -537,6 +561,15 @@ def get_analysis(refresh: bool = False):
         "power_curve": analysis.power_curve(activities, today, db.get_settings()["ftp"]),
         "garmin": garmin_metrics, "garmin_at": fetched_at, "garmin_error": garmin_error,
     }
+
+
+@app.get("/api/calendars")
+def mac_calendars():
+    """Kalender der Kalender-App des Macs (für die Auswahl, wohin Trainings eingetragen werden)."""
+    try:
+        return TARGETS["calendar"].calendars()
+    except Exception as e:  # noqa: BLE001 – z. B. fehlende Berechtigung
+        raise HTTPException(502, str(e)) from e
 
 
 # --- Einrichtung (erster Start) ---------------------------------------------

@@ -12,11 +12,6 @@ STATIC_DIR = ROOT / "app" / "static"
 
 # Garmin-Tokens liegen bewusst außerhalb des Projektordners (nicht im Git).
 GARMIN_TOKEN_DIR = Path(os.path.expanduser("~/.trainingsapp/garmin_tokens"))
-# Google Kalender: OAuth-Client (aus der Google Cloud Console) und Login-Token, ebenfalls außerhalb des Projekts.
-GOOGLE_CLIENT_FILE = Path(os.path.expanduser("~/.trainingsapp/google_client_secret.json"))
-GOOGLE_TOKEN_FILE = Path(os.path.expanduser("~/.trainingsapp/google_token.json"))
-# Alternative ohne OAuth-Zustimmungsbildschirm: Dienstkonto-Schlüssel, Kalender wird für das Dienstkonto freigegeben.
-GOOGLE_SERVICE_ACCOUNT_FILE = Path(os.path.expanduser("~/.trainingsapp/google_service_account.json"))
 
 
 def _load_dotenv() -> None:

@@ -145,7 +145,7 @@
         <label class="inline"><input type="checkbox" value="garmin"> Garmin</label>
         <label class="inline"><input type="checkbox" value="intervals"> Wahoo (via intervals.icu)</label>
         <label class="inline"><input type="checkbox" value="zwift"> Zwift</label>
-        <label class="inline"><input type="checkbox" value="google"> Google Kalender</label>
+        <label class="inline"><input type="checkbox" value="calendar"> Kalender</label>
         <span id="sync-state" class="muted"></span>
       </fieldset>
 
@@ -250,8 +250,23 @@
           <label>Art <select name="race_type"></select></label>
           <label>Stunden pro normaler Trainingswoche <input type="number" name="week_hours" min="2" max="30" step="0.5"></label>
         </div>
-        <p class="muted small">Daraus plant die App die Blöcke bis zum Wettkampf. Welche Einheiten an welchem Tag liegen,
-          stellst du unter <b>Einstellungen → Wochenmuster</b> ein.</p>
+        <p class="muted small">Daraus plant die App die Blöcke bis zum Wettkampf.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>4 · Wann kannst du trainieren? (optional)</legend>
+        <p class="muted small">Ein festes Wochenmuster brauchst du nicht: Beim Planen eines Blocks verteilt die KI die
+          Einheiten in deine freien Zeiten. Beides lässt sich später im Import-Dialog und in den Einstellungen ändern.</p>
+        <label>Feste Zeiten und Wünsche <textarea name="availability" rows="3"
+          placeholder="z. B. Mo–Fr erst ab 17 Uhr · Schwimmbad nur Di und Do 6:30–8 Uhr · Sa lange Radausfahrt mit Verein · So frei"></textarea></label>
+        <label>Kalender mit Terminen (iCal-Links, einer pro Zeile) <textarea name="calendar_ics" rows="2"
+          placeholder="webcal://p…-caldav.icloud.com/published/2/…"></textarea></label>
+        <label>Trainings eintragen in Kalender <select name="mac_calendar" class="mac-calendar"></select></label>
+        <details class="small muted ics-help"><summary>Wo finde ich den iCal-Link?</summary>
+          <b>iCloud</b>: Kalender-App → Rechtsklick auf den Kalender →
+          Teilen → „Öffentlicher Kalender“ → Link kopieren. · <b>Outlook</b>: Einstellungen → Kalender → Freigegebene
+          Kalender → „Kalender veröffentlichen“ → ICS-Link. Der Link ist geheim – er bleibt nur auf diesem Mac; an die KI
+          gehen nur die belegten Uhrzeiten, keine Termintitel.</details>
       </fieldset>
 
       <div class="row-between">
@@ -410,7 +425,10 @@
       <fieldset class="plan-ai">
         <legend>1 · Plan von einer KI schreiben lassen (ChatGPT, Gemini, Claude …)</legend>
         <p class="muted small">Der Auftrag enthält deine Schwellen, dein Saisonziel, die Soll-Stunden je Woche, Entlastungswochen,
-          dein Wochenmuster und das Format. In die KI einfügen, die Antwort unten einfügen – Ernährung rechnet die App selbst.</p>
+          deine freien Zeiten (unten und aus deinen Kalendern) und das Format. In die KI einfügen, die Antwort unten
+          einfügen – Ernährung rechnet die App selbst.</p>
+        <label>Wann kannst du (nicht)? Wünsche für diesen Block (wird gemerkt)
+          <textarea id="plan-ai-notes" rows="3" placeholder="z. B. Mo–Fr erst ab 17 Uhr · Schwimmbad nur Di und Do früh · 2.–4.12. Dienstreise, nur Laufen möglich"></textarea></label>
         <div class="row">
           <label class="inline">Wochen <input type="number" id="plan-ai-weeks" min="1" max="8" value="4" style="width:4.5em"></label>
           <button type="button" id="btn-plan-ai" class="primary small">KI-Auftrag kopieren</button>
@@ -494,12 +512,28 @@
         <label class="inline"><input type="checkbox" name="auto_sync" value="garmin"> Garmin</label>
         <label class="inline"><input type="checkbox" name="auto_sync" value="intervals"> intervals.icu / Wahoo</label>
         <label class="inline"><input type="checkbox" name="auto_sync" value="zwift"> Zwift (nur Rad/Lauf)</label>
-        <label class="inline"><input type="checkbox" name="auto_sync" value="google"> Google Kalender</label>
-        <label class="inline">Kalendername <input name="google_calendar" style="width:8em"></label>
-        <button type="button" id="btn-bulk-google" class="small">Geplante Workouts jetzt an Google senden</button>
+        <label class="inline"><input type="checkbox" name="auto_sync" value="calendar"> Kalender</label>
+        <label class="inline">in <select name="mac_calendar" class="mac-calendar"></select></label>
+        <button type="button" id="btn-bulk-calendar" class="small">Geplante Workouts jetzt eintragen</button>
+        <p class="muted small wide-note">Kalender = die Kalender-App dieses Macs. Liegt der gewählte Kalender bei iCloud oder
+          einem anderen Konto, landen die Trainings automatisch auch dort und auf dem iPhone.</p>
       </fieldset>
       <fieldset>
-        <legend>Wochenmuster – Einheiten pro Tag (keine = Ruhetag)</legend>
+        <legend>Verfügbarkeit für die Planung</legend>
+        <label>Feste Zeiten und Wünsche <textarea name="availability" rows="2"
+          placeholder="z. B. Mo–Fr erst ab 17 Uhr · Schwimmbad nur Di und Do 6:30–8 Uhr"></textarea></label>
+        <label>Kalender mit Terminen (iCal-Links, einer pro Zeile) <textarea name="calendar_ics" rows="2"
+          placeholder="webcal://p…-caldav.icloud.com/published/2/…"></textarea></label>
+        <details class="small muted ics-help"><summary>Wo finde ich den iCal-Link?</summary>
+          <b>iCloud</b>: Kalender-App → Rechtsklick auf den Kalender →
+          Teilen → „Öffentlicher Kalender“ → Link kopieren. · <b>Outlook</b>: Einstellungen → Kalender → Freigegebene
+          Kalender → „Kalender veröffentlichen“ → ICS-Link. Der Link ist geheim – er bleibt nur auf diesem Mac; an die KI
+          gehen nur die belegten Uhrzeiten, keine Termintitel.</details>
+      </fieldset>
+      <fieldset>
+        <legend>Wochenmuster (optional) – Einheiten pro Tag (keine = Ruhetag)</legend>
+        <p class="muted small">Grundlage für die Vorschläge in der Seitenleiste. Weicht es vom Standard ab, bekommt es auch
+          die KI als Orientierung; sonst verteilt sie die Einheiten selbst in deine freien Zeiten.</p>
         <div id="pattern"></div>
       </fieldset>
       <div class="row-between">

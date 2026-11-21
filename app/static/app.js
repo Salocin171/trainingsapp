@@ -639,10 +639,16 @@ function fillSetup(values) {
   if (values.css) suform.css.value = secToPace(values.css);
   if (values.race_type) suform.race_type.value = values.race_type;
   if (values.plant_based != null) suform.plant_based.checked = values.plant_based;
+  if (values.availability != null) suform.availability.value = values.availability;
+  if (values.calendar_ics) suform.calendar_ics.value = values.calendar_ics.join("\n");
 }
+
+// iCal-Links aus einem Textfeld (einer pro Zeile); webcal:// wird serverseitig zu https://
+const icsLinks = (text) => text.split(/\s+/).map((l) => l.trim()).filter((l) => /^(https?|webcal):\/\//i.test(l));
 
 function openSetup() {
   const s = state.settings;
+  fillCalendarSelect(suform.mac_calendar, s.mac_calendar);
   suform.race_type.innerHTML = Object.entries(RACE_TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   fillSetup({ ...s, weight: s.weight || "" });
   state.setupProfile = {};
@@ -697,6 +703,10 @@ async function saveSetup(done = true) {
     threshold_pace: pace("threshold_pace"), css: pace("css"),
     goal_name: suform.goal_name.value.trim(), goal_date: suform.goal_date.value, race_type: suform.race_type.value,
     plant_based: suform.plant_based.checked, setup_done: true,
+    availability: suform.availability.value.trim(), calendar_ics: icsLinks(suform.calendar_ics.value),
+    mac_calendar: suform.mac_calendar.value,
+    ...(suform.mac_calendar.value && !state.settings.auto_sync.includes("calendar")
+      ? { auto_sync: [...state.settings.auto_sync, "calendar"] } : {}),  // gewählter Kalender = Trainings automatisch eintragen
   };
   const body = done ? values : { setup_done: true };
   state.settings = await api("/api/settings", {
@@ -1116,7 +1126,21 @@ function bindCircuitTimer() {
 const settingsDialog = $("#settings");
 const sform = $("#settings-form");
 
+// Kalender der Kalender-App zur Auswahl; beim ersten Mal fragt macOS nach der Berechtigung
+async function fillCalendarSelect(select, current) {
+  select.innerHTML = `<option value="${escapeHtml(current || "")}">${escapeHtml((current || "– keiner –").trim())}</option>`;
+  try {
+    const list = await api("/api/calendars");
+    select.innerHTML = `<option value="">– keiner –</option>` + list.filter((c) => c.writable)
+      .map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name.trim())}</option>`).join("");
+    select.value = current || "";
+  } catch (e) {
+    toast(e.message, 10000);
+  }
+}
+
 function openSettings() {
+  fillCalendarSelect(sform.mac_calendar, state.settings.mac_calendar);
   const s = state.settings;
   sform.race_type.innerHTML = Object.entries(RACE_TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("#race-type").innerHTML = state.raceTypes.map((t) => `<option value="${t.key}">${t.label}</option>`).join("");
@@ -1124,13 +1148,15 @@ function openSettings() {
   renderRaceTypeHint();
   renderRaces();
   for (const key of ["ftp", "lthr_run", "lthr_ride", "max_hr", "weight", "sweat_rate", "goal_name", "goal_date", "race_type", "week_hours",
-    "recovery_every", "cycle_start", "taper_weeks", "target_ctl", "zwift_dir", "google_calendar"]) {
+    "recovery_every", "cycle_start", "taper_weeks", "target_ctl", "zwift_dir"]) {
     sform[key].value = s[key] ?? "";
   }
   sform.threshold_pace.value = secToPace(s.threshold_pace);
   sform.css.value = secToPace(s.css);
   sform.garmin_profile.checked = s.garmin_profile;
   sform.plant_based.checked = s.plant_based;
+  sform.availability.value = s.availability || "";
+  sform.calendar_ics.value = (s.calendar_ics || []).join("\n");
   $("#garmin-profile-at").textContent = s.garmin_profile_at
     ? `zuletzt übernommen: ${new Date(s.garmin_profile_at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}`
     : "";
@@ -1208,8 +1234,9 @@ async function saveSettings() {
       week_hours: Number(sform.week_hours.value), recovery_every: Number(sform.recovery_every.value),
       target_ctl: Number(sform.target_ctl.value) || 0,
       cycle_start: sform.cycle_start.value, taper_weeks: Number(sform.taper_weeks.value) || 0,
-      zwift_dir: sform.zwift_dir.value.trim(), google_calendar: sform.google_calendar.value.trim() || "Sport",
+      zwift_dir: sform.zwift_dir.value.trim(), mac_calendar: sform.mac_calendar.value,
       garmin_profile: sform.garmin_profile.checked, plant_based: sform.plant_based.checked,
+      availability: sform.availability.value.trim(), calendar_ics: icsLinks(sform.calendar_ics.value),
       auto_sync: [...sform.querySelectorAll('[name="auto_sync"]:checked')].map((cb) => cb.value),
       week_pattern: state.pattern,
     },
@@ -1262,7 +1289,7 @@ async function saveGoal() {
 
 async function refreshStatus() {
   const s = state.connected = await api("/api/status");
-  const names = { garmin: "Garmin", intervals: "intervals.icu → Wahoo", zwift: "Zwift", google: "Google Kalender" };
+  const names = { garmin: "Garmin", intervals: "intervals.icu → Wahoo", zwift: "Zwift", calendar: "Kalender" };
   $("#status").innerHTML = Object.entries(names)
     .map(([k, l]) => `<span class="pill ${s[k] ? "on" : ""}" title="${l}: ${s[k] ? "verbunden" : "nicht eingerichtet – siehe README"}">${s[k] ? "●" : "○"}<span class="pill-label"> ${l}</span></span>`)
     .join("");
@@ -1660,20 +1687,26 @@ function nextMonday() {
 
 async function copyPlanPrompt() {
   const weeks = Number($("#plan-ai-weeks").value) || 4;
-  const text = await (await fetch(`/api/plan/prompt?weeks=${weeks}&start=${pform.start.value || ""}`)).text();
+  const notes = $("#plan-ai-notes").value;
+  const res = await api("/api/plan/prompt", { method: "POST", body: { weeks, start: pform.start.value || "", notes } });
+  state.settings.availability = notes.trim();
   const box = $("#plan-ai-text");
-  box.value = text;
+  box.value = res.text;
   box.hidden = false;
+  const calendars = (state.settings.calendar_ics || []).length;
+  const info = [calendars ? `${res.busy_days} Tage mit Terminen aus ${calendars} Kalender${calendars > 1 ? "n" : ""}` : "",
+    ...res.errors].filter(Boolean).join(" · ");
   try {
-    await navigator.clipboard.writeText(text);
-    $("#plan-ai-state").textContent = `✓ Kopiert (${Math.round(text.length / 4)} Tokens ca.) – in die KI einfügen`;
+    await navigator.clipboard.writeText(res.text);
+    $("#plan-ai-state").textContent = `✓ Kopiert (ca. ${Math.round(res.text.length / 3.5)} Tokens)${info ? ` · ${info}` : ""} – in die KI einfügen`;
   } catch {
     box.select();
-    $("#plan-ai-state").textContent = "Text markiert – mit ⌘C kopieren";
+    $("#plan-ai-state").textContent = `Text markiert – mit ⌘C kopieren${info ? ` · ${info}` : ""}`;
   }
 }
 
 function openPlanImport() {
+  $("#plan-ai-notes").value = state.settings.availability || "";
   $("#plan-ai-text").hidden = true;
   $("#plan-ai-state").textContent = "";
   pform.start.value = nextMonday();
@@ -1804,9 +1837,10 @@ async function main() {
   fillFeedbackOptions(document);
   bindCircuitTimer();
   $("#btn-add-race").onclick = withBusy($("#btn-add-race"), addRace);
-  $("#btn-bulk-google").onclick = withBusy($("#btn-bulk-google"), async () => {
-    const res = await api("/api/sync/bulk", { method: "POST", body: { target: "google" } });
-    toast(`${res.sent} Workouts an Google Kalender gesendet` + (res.errors.length ? ` – Probleme: ${res.errors.join(" | ")}` : ""),
+  $("#btn-bulk-calendar").onclick = withBusy($("#btn-bulk-calendar"), async () => {
+    if (sform.mac_calendar.value !== state.settings.mac_calendar) await saveSettings();  // gewählten Kalender erst speichern
+    const res = await api("/api/sync/bulk", { method: "POST", body: { target: "calendar" } });
+    toast(`${res.sent} Workouts in den Kalender eingetragen` + (res.errors.length ? ` – Probleme: ${res.errors.join(" | ")}` : ""),
       res.errors.length ? 10000 : 4000);
     refreshSidebar();
   });

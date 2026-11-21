@@ -35,9 +35,18 @@ def _zones(sport: str) -> str:
     return ", ".join(f"{label} {z[k][0]}-{z[k][1]}" for k, label in names)
 
 
+def _slots(slots: list) -> str:
+    return ", ".join(x if isinstance(x, str) else f"{x[0]}–{x[1]}" for x in slots)
+
+
 def build(settings: dict, start: date, weeks: int, race_list: list[dict], ctl: float | None = None,
-          past_hours: list[float] | None = None) -> str:
-    """Auftragstext für `weeks` Wochen ab dem Montag `start`."""
+          past_hours: list[float] | None = None, busy: dict | None = None, notes: str = "",
+          default_pattern: dict | None = None) -> str:
+    """Auftragstext für `weeks` Wochen ab dem Montag `start`.
+
+    busy: belegte Zeiten je Tag aus Kalendern (availability.busy), notes: eigene Angaben, wann trainiert werden
+    kann. Das Wochenmuster steht nur drin, wenn es vom Standard (default_pattern) abweicht, also bewusst gesetzt ist –
+    sonst verteilt die KI die Einheiten selbst nach den Regeln und freien Zeiten."""
     s = settings
     lines = ["Du bist erfahrene*r Triathlon-Trainer*in. Erstelle meinen nächsten Trainingsblock als JSON für meine "
              "Trainingsapp. Antworte NUR mit dem JSON, ohne Erklärungen.", "", "## Ich"]
@@ -64,10 +73,22 @@ def build(settings: dict, start: date, weeks: int, race_list: list[dict], ctl: f
                      f" – {info['focus']}{extra}")
 
     pattern = s.get("week_pattern") or {}
-    lines += ["", "## Wochenmuster (Einheiten je Tag; leer = Ruhetag)"]
-    lines.append(" · ".join(f"{label}: " + (", ".join(f"{SPORT_DE.get(x['sport'], x['sport'])} {TYPE_DE.get(x['type'], x['type'])}"
-                                                      for x in pattern.get(key, [])) or "Ruhe")
-                           for key, label in WEEKDAYS))
+    own_pattern = bool(pattern) and pattern != default_pattern
+    if own_pattern:
+        lines += ["", "## Mein übliches Wochenmuster (Orientierung; leer = Ruhetag)"]
+        lines.append(" · ".join(f"{label}: " + (", ".join(f"{SPORT_DE.get(x['sport'], x['sport'])} {TYPE_DE.get(x['type'], x['type'])}"
+                                                          for x in pattern.get(key, [])) or "Ruhe")
+                               for key, label in WEEKDAYS))
+
+    if notes.strip() or busy:
+        lines += ["", "## Wann ich trainieren kann"]
+        if notes.strip():
+            lines.append(notes.strip())
+        if busy:
+            lines.append("Belegt laut Kalender (dort keine Einheiten; ca. 30 min Puffer für Weg und Umziehen):")
+            for day, slots in sorted(busy.items()):
+                if start <= day <= end:
+                    lines.append(f"- {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][day.weekday()]} {day:%d.%m.}: {_slots(slots)}")
 
     in_range = [r for r in race_list if start.isoformat() <= r["date"] <= (end + timedelta(days=14)).isoformat()]
     if in_range:
@@ -78,8 +99,15 @@ def build(settings: dict, start: date, weeks: int, race_list: list[dict], ctl: f
             lines.append(f"- {date.fromisoformat(r['date']):%d.%m.%Y} {r['name']} ({r.get('priority', 'A')}){note}")
 
     lines += ["", "## Regeln",
-              "- Soll-Stunden je Woche ±10 % einhalten, Wochenmuster als Grundgerüst; ca. 80 % locker.",
-              "- Harte Einheiten nicht an zwei Tagen hintereinander; Entlastungswoche wirklich locker.",
+              "- Soll-Stunden je Woche ±10 % einhalten; ca. 80 % locker (unter der ersten Schwelle).",
+              "- " + ("Mein Wochenmuster als Grundgerüst, an freie Zeiten anpassen." if own_pattern else
+                      "Kein festes Wochenmuster: Einheiten selbst auf die Woche verteilen – typisch 2–3× Schwimmen, "
+                      "2–3× Rad, 3–4× Laufen, 1–2× Kraft/Stabi, mindestens ein Ruhetag; lange Einheiten dort, wo "
+                      "viel Zeit frei ist (oft am Wochenende)."),
+              "- Jede Ausdauereinheit bekommt eine \"time\" in einem freien Zeitfenster; die Dauer muss hineinpassen.",
+              "- Harte Einheiten derselben Sportart mindestens 48 h auseinander, pro Tag höchstens eine harte Einheit; "
+              "kein harter Lauf am Tag nach der längsten Radeinheit; Kraft nicht am Vortag harter Intervalle.",
+              "- Entlastungswoche wirklich locker und kürzer.",
               "- Wettkämpfe: Tag davor kurz mit Steigerungen, danach Erholung.",
               "- Ernährung NICHT angeben – die App berechnet Kohlenhydrate, Trinken und Eiweiß selbst.",
               "", "## JSON-Format (genau so)",
@@ -90,7 +118,7 @@ def build(settings: dict, start: date, weeks: int, race_list: list[dict], ctl: f
               '  oder {"sport":"run","template":"endurance","minutes":60,"name":"Lauf locker"}',
               '  Kraft: {"sport":"strength","template":"stabi","minutes":40} · Mobility: {"sport":"mobility",'
               '"template":"mobility","minutes":25}',
-              "- sport: swim | ride | run | strength | mobility. Tage: mon…sun. \"time\" und \"description\" (kurz) optional.",
+              "- sport: swim | ride | run | strength | mobility. Tage: mon…sun. \"description\" (kurz) optional.",
               "- steps (Kurzform): w=Einwärmen, i=Intervall, r=Erholung, s=Konstant, c=Ausfahren; Zahl = Minuten, "
               "mit s = Sekunden (r20s); @von-bis in %; 4x(…) = Wiederholung.",
               "- % bedeutet: Rad % FTP, Laufen % der Schwellengeschwindigkeit, Schwimmen % der CSS-Geschwindigkeit "

@@ -21,8 +21,8 @@ DEFAULT_SETTINGS = {
     "recovery_every": 4,         # jede n-te Woche Entlastung (0 = aus)
     "cycle_start": "",           # Montag der 1. Belastungswoche; leer = Rhythmus rückwärts vom Wettkampf
     "taper_weeks": 0,            # Taper inkl. Rennwoche; 0 = Standard der Wettkampfart (Ironman 3)
-    "auto_sync": [],             # z.B. ["garmin", "zwift", "intervals", "google"]
-    "google_calendar": "Sport",  # Name des Google-Kalenders für geplante Workouts
+    "auto_sync": [],             # z.B. ["garmin", "zwift", "intervals", "calendar"]
+    "mac_calendar": "",          # Name des Kalenders in der Kalender-App des Macs für geplante Workouts
     "garmin_profile": True,      # FTP, LTHR, Schwellentempo, Max-Puls beim Öffnen von Garmin holen
     "garmin_profile_at": "",     # Zeitpunkt der letzten Übernahme
     "css_garmin_seen": "",       # Zeitpunkt der zuletzt gesehenen Garmin-CSS-Messung (nur neuere werden übernommen)
@@ -30,7 +30,9 @@ DEFAULT_SETTINGS = {
     "weight": 0,                 # kg, für Verpflegungsplan (von Garmin, falls vorhanden)
     "sweat_rate": 0,             # l/h Schweißverlust (vorher/nachher wiegen), 0 = unbekannt → Trinken nach Durst
     "plant_based": False,        # vegetarisch/vegan → Ernährungshinweise mit pflanzlichem Protein
-    "setup_done": False,         # Einrichtungsdialog abgeschlossen (neue Datenbanken starten mit False)
+    "setup_done": False,
+    "calendar_ics": [],          # private iCal-Links (Uni, Arbeit …) → belegte Zeiten im KI-Auftrag; bleibt lokal
+    "availability": "",          # eigene Angaben, wann trainiert werden kann (wird im KI-Auftrag mitgeschickt)         # Einrichtungsdialog abgeschlossen (neue Datenbanken starten mit False)
     "race_plan": {},             # Eingaben der Renntag-Planung (Analyse → Renntag)
     # Wochenmuster: Einheiten je Wochentag (leere Liste = Ruhetag).
     # type: recovery | easy | hard | long; sport: swim | ride | run | strength | mobility
