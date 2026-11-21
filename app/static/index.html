@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trainingsapp</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/vendor/fullcalendar.min.js"></script>
+  <script src="/static/vendor/fullcalendar-de.min.js"></script>
+</head>
+<body>
+  <header>
+    <button id="btn-sidebar" class="icon" title="Übersicht ein-/ausblenden" aria-label="Übersicht ein-/ausblenden">☰</button>
+    <img class="logo" src="/static/logo.png" alt="">
+    <h1>Trainingsapp</h1>
+    <div class="pills" id="status"></div>
+    <div class="actions">
+      <button id="btn-new" class="primary">+ Workout</button>
+      <button id="btn-timer" title="Intervall-Timer für Kraft/Stabi">⏱ Timer</button>
+      <button id="btn-analysis">Analyse</button>
+      <button id="btn-plan">Plan importieren</button>
+      <button id="btn-import">Aktivitäten importieren</button>
+      <button id="btn-settings">Einstellungen</button>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <section class="card" id="block-card">
+        <div class="row-between wrap">
+          <h2 id="block-title">Block</h2>
+          <span id="race-countdown" class="badge"></span>
+        </div>
+        <div id="block-timeline" class="timeline"></div>
+        <div id="cycle" class="cycle"></div>
+        <p id="block-week" class="muted"></p>
+        <p id="block-focus" class="muted small"></p>
+        <p id="ctl-plan" class="small"></p>
+      </section>
+
+      <section class="card conflicts" id="conflicts-card" hidden>
+        <div class="row-between">
+          <h2>⚠︎ Passt nicht zu Wettkämpfen</h2>
+          <button id="btn-fix-all" class="small">Alle anpassen</button>
+        </div>
+        <ul id="conflicts"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Wochenstunden <span class="label">Schwimmen · Rad · Laufen</span></h2>
+        <div id="weeks" class="weeks"></div>
+        <div id="week-sports" class="week-sports"></div>
+      </section>
+
+      <section class="card">
+        <div class="row-between">
+          <h2>Ziele</h2>
+          <button id="btn-add-goal" class="small">+ Ziel</button>
+        </div>
+        <ul id="goals"></ul>
+      </section>
+
+      <section class="card" id="form-card">
+        <h2>Form</h2>
+        <div class="metrics">
+          <div><span class="label">Fitness (CTL)</span><b id="m-ctl">–</b></div>
+          <div><span class="label">Ermüdung (ATL)</span><b id="m-atl">–</b></div>
+          <div><span class="label">Form (TSB)</span><b id="m-tsb">–</b></div>
+        </div>
+        <p id="m-form" class="muted"></p>
+        <svg id="load-chart" viewBox="0 0 320 110" preserveAspectRatio="none"></svg>
+        <div class="legend"><span class="ctl">CTL</span><span class="atl">ATL</span><span class="tsb">TSB</span></div>
+        <ul id="warnings" class="notes"></ul>
+      </section>
+
+      <section class="card">
+        <div class="row-between">
+          <h2>Vorschläge</h2>
+          <button id="btn-accept-all" class="small">Alle übernehmen</button>
+        </div>
+        <ul id="suggestions"></ul>
+      </section>
+    </aside>
+
+    <section id="calendar"></section>
+  </main>
+
+  <!-- Workout-Editor -->
+  <dialog id="editor">
+    <form method="dialog" id="editor-form">
+      <div class="row-between">
+        <h2 id="editor-title">Workout</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <div class="grid">
+        <label>Datum <input type="date" name="date" required></label>
+        <label>Sport
+          <select name="sport">
+            <option value="swim">Schwimmen</option><option value="ride">Rad</option><option value="run">Laufen</option>
+            <option value="strength">Stabi / Kraft</option><option value="mobility">Dehnen / Yoga</option>
+            <option value="other">Sonstiges</option>
+          </select>
+        </label>
+        <label>Ziel
+          <select name="target">
+            <option value="power">% FTP (Watt)</option><option value="pace">% Schwellentempo / CSS</option>
+            <option value="hr">% LTHR (Puls)</option>
+          </select>
+        </label>
+        <label class="wide">Name <input name="name" required></label>
+        <label class="wide">Beschreibung <textarea name="description" rows="3"></textarea></label>
+      </div>
+
+      <div class="row template-row">
+        <select id="tpl-kind"></select>
+        <input id="tpl-min" type="number" min="10" max="360" value="60" step="5"> min
+        <button type="button" id="btn-template" class="small">Vorlage laden</button>
+        <button type="button" id="btn-circuit" class="small primary">▶ Zirkel-Timer</button>
+      </div>
+
+      <svg id="profile" viewBox="0 0 600 90" preserveAspectRatio="none"></svg>
+      <p id="stats" class="muted"></p>
+
+      <div id="steps"></div>
+      <div class="row">
+        <button type="button" id="btn-add-step" class="small">+ Schritt</button>
+        <button type="button" id="btn-add-repeat" class="small">+ Wiederholung</button>
+      </div>
+
+      <fieldset>
+        <legend>Erledigt &amp; Feedback</legend>
+        <div class="row">
+          <label class="inline"><input type="checkbox" name="done"> abgeschlossen</label>
+          <label class="inline">Ist-TSS <input type="number" name="actual_tss" step="1" style="width:6em"></label>
+          <label class="inline">Anstrengung (RPE) <select name="rpe"></select></label>
+          <label class="inline">Befinden <select name="feel"></select></label>
+        </div>
+        <label>Notiz <input name="note" placeholder="Wie lief's? Beine, Wetter, Verpflegung …"></label>
+      </fieldset>
+
+      <fieldset class="row" id="sync-box">
+        <legend>Auf Geräte senden</legend>
+        <label class="inline"><input type="checkbox" value="garmin"> Garmin</label>
+        <label class="inline"><input type="checkbox" value="intervals"> Wahoo (via intervals.icu)</label>
+        <label class="inline"><input type="checkbox" value="zwift"> Zwift</label>
+        <label class="inline"><input type="checkbox" value="google"> Google Kalender</label>
+        <span id="sync-state" class="muted"></span>
+      </fieldset>
+
+      <div class="row-between">
+        <button type="button" id="btn-delete" class="danger">Löschen</button>
+        <div class="row">
+          <button type="button" id="btn-send">Speichern &amp; senden</button>
+          <button type="button" id="btn-save" class="primary">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Workout-Details mit Ernährung -->
+  <dialog id="detail-dialog">
+    <form method="dialog" id="detail-form">
+      <div class="row-between detail-head">
+        <div class="detail-title">
+          <span id="d-sport" class="detail-sport"></span>
+          <h2 id="d-title">Workout</h2>
+        </div>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <p id="d-desc" class="detail-desc"></p>
+      <button type="button" id="d-more" class="link small" hidden>mehr anzeigen</button>
+      <div id="d-facts" class="facts detail-facts"></div>
+      <svg id="d-profile" viewBox="0 0 600 90" preserveAspectRatio="none"></svg>
+      <details id="d-steps-box" class="detail-steps">
+        <summary>Ablauf</summary>
+        <ol id="d-steps"></ol>
+      </details>
+
+      <section class="fuel">
+        <div class="row-between">
+          <h3>Ernährung</h3>
+          <span id="d-fuel-kind" class="badge"></span>
+        </div>
+        <div id="d-fuel" class="fuel-grid"></div>
+        <div id="d-fuel-plan" class="fuel-plan"></div>
+        <p id="d-fuel-day" class="fuel-day"></p>
+        <ul id="d-fuel-notes" class="notes fuel-notes"></ul>
+        <p id="d-fuel-basis" class="muted small"></p>
+      </section>
+
+      <div class="row-between detail-actions">
+        <button type="button" id="d-edit">Bearbeiten</button>
+        <div class="row">
+          <button type="button" id="d-done">Als erledigt markieren</button>
+          <button type="button" id="d-accept" class="primary" hidden>Übernehmen</button>
+          <button type="button" id="d-start" class="primary" hidden>▶ Workout starten</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Einrichtung beim ersten Start -->
+  <dialog id="setup-dialog">
+    <form method="dialog" id="setup-form">
+      <div class="row-between">
+        <h2>Willkommen in der Trainingsapp</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <p class="muted">Einmal kurz einrichten – alles lässt sich später unter <b>Einstellungen</b> ändern.
+        Deine Daten bleiben auf diesem Mac (Ordner <code>data/</code>), nichts davon landet bei GitHub.</p>
+
+      <fieldset>
+        <legend>1 · Garmin verbinden (optional)</legend>
+        <p class="muted small">Übernimmt FTP, Schwellen, Max-Puls und Gewicht und lädt deine Aktivitäten des letzten Jahres
+          (für Fitness/Form). Das Passwort wird nicht gespeichert, nur die Anmeldung auf diesem Mac.</p>
+        <div class="grid" id="setup-garmin-login">
+          <label>E-Mail <input type="email" name="garmin_email" autocomplete="username"></label>
+          <label>Passwort <input type="password" name="garmin_password" autocomplete="current-password"></label>
+          <label id="setup-mfa" hidden>Code aus der E-Mail / App <input name="garmin_code" inputmode="numeric" autocomplete="one-time-code"></label>
+        </div>
+        <div class="row">
+          <button type="button" id="btn-setup-garmin">Mit Garmin verbinden</button>
+          <span id="setup-garmin-state" class="muted small"></span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>2 · Du und deine Schwellen</legend>
+        <p class="muted small">Unbekannt? Vorschlag stehen lassen und später einen Test machen – die App rechnet Zonen,
+          Watt und Pace daraus.</p>
+        <div class="grid">
+          <label>Gewicht (kg) <input type="number" name="weight" step="0.1" min="30" max="200" required></label>
+          <label>Max-Puls <input type="number" name="max_hr" min="120" max="230"></label>
+          <label>FTP Rad (Watt) <input type="number" name="ftp" min="50" max="600"></label>
+          <label>LTHR Rad (bpm) <input type="number" name="lthr_ride" min="100" max="220"></label>
+          <label>LTHR Laufen (bpm) <input type="number" name="lthr_run" min="100" max="220"></label>
+          <label>Schwellentempo Laufen (min/km) <input name="threshold_pace" placeholder="4:30"></label>
+          <label>CSS Schwimmen (min/100 m) <input name="css" placeholder="1:45"></label>
+        </div>
+        <label class="inline"><input type="checkbox" name="plant_based"> Ich ernähre mich vegetarisch/vegan (Hinweise mit pflanzlichem Protein)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>3 · Dein Saisonziel</legend>
+        <div class="grid">
+          <label class="wide">Wettkampf <input name="goal_name" placeholder="z. B. Ironman Hamburg"></label>
+          <label>Datum <input type="date" name="goal_date"></label>
+          <label>Art <select name="race_type"></select></label>
+          <label>Stunden pro normaler Trainingswoche <input type="number" name="week_hours" min="2" max="30" step="0.5"></label>
+        </div>
+        <p class="muted small">Daraus plant die App die Blöcke bis zum Wettkampf. Welche Einheiten an welchem Tag liegen,
+          stellst du unter <b>Einstellungen → Wochenmuster</b> ein.</p>
+      </fieldset>
+
+      <div class="row-between">
+        <button type="button" id="btn-setup-skip" class="ghost small">Später</button>
+        <button type="button" id="btn-setup-save" class="primary">Los geht's</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Zirkel-Timer (Kraft/Stabi) -->
+  <dialog id="timer-dialog">
+    <form method="dialog" id="timer-form">
+      <div class="row-between">
+        <h2 id="timer-title">Zirkel-Timer</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <div id="timer-setup">
+        <div class="grid">
+          <label>Belastung (s) <input type="number" name="work" min="5" max="600" step="5"></label>
+          <label>Pause (s) <input type="number" name="rest" min="0" max="600" step="5"></label>
+          <label>Runden (max. 60) <input type="number" name="rounds" min="1" max="60"></label>
+          <label>Pause nach jeder Runde (s) <input type="number" name="round_rest" min="0" max="900" step="15"></label>
+          <label class="wide">Übungen – eine pro Zeile, eine Runde = jede Übung einmal.
+            Hinten „| 12 Wdh“ = Wiederholungen (weiter mit „Fertig“, „| Wdh“ ohne Zahl), „| 45 s“ = eigene Dauer
+            <textarea name="exercises" rows="8" placeholder="Plank&#10;Rudern mit Band | 12 Wdh&#10;Wandsitz | 45 s"></textarea></label>
+        </div>
+        <p id="timer-summary" class="muted"></p>
+      </div>
+      <div id="timer-run" hidden>
+        <div id="t-phase" class="timer-phase"></div>
+        <div id="t-clock" class="timer-clock"></div>
+        <div id="t-exercise" class="timer-exercise"></div>
+        <div id="t-next" class="timer-next muted"></div>
+        <div class="timer-bar"><div id="t-bar"></div></div>
+        <p id="t-progress" class="muted timer-progress"></p>
+      </div>
+      <div id="timer-done" hidden>
+        <div id="t-done-title" class="timer-phase"></div>
+        <p id="t-done-summary" class="muted timer-progress"></p>
+      </div>
+      <div class="row-between">
+        <div class="row">
+          <label class="inline"><input type="checkbox" name="sound" checked> Signalton</label>
+          <label class="inline"><input type="checkbox" name="voice" checked> Ansage</label>
+        </div>
+        <div class="row" id="timer-setup-actions">
+          <button type="button" id="btn-t-start" class="primary">▶ Start</button>
+        </div>
+        <div class="row" id="timer-run-actions" hidden>
+          <button type="button" id="btn-t-prev" title="Zurück (←)">⏮</button>
+          <button type="button" id="btn-t-pause" class="primary" title="Leertaste">⏸ Pause</button>
+          <button type="button" id="btn-t-done" class="primary" title="Leertaste / Enter" hidden>✓ Fertig</button>
+          <button type="button" id="btn-t-next" title="Überspringen (→)">⏭</button>
+          <button type="button" id="btn-t-full" title="Vollbild">⛶</button>
+          <button type="button" id="btn-t-stop" class="danger">Beenden</button>
+        </div>
+        <div class="row" id="timer-done-actions" hidden>
+          <button type="button" id="btn-t-again">Nochmal</button>
+          <button type="button" id="btn-t-finish" class="primary">Als erledigt speichern</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ziel -->
+  <dialog id="goal-dialog">
+    <form method="dialog" id="goal-form">
+      <div class="row-between">
+        <h2 id="goal-title">Ziel</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <div class="grid">
+        <label class="wide">Name (optional) <input name="name" placeholder="z.B. Radkilometer Winter"></label>
+        <label>Sport
+          <select name="sport">
+            <option value="all">Alle</option><option value="swim">Schwimmen</option><option value="ride">Rad</option>
+            <option value="run">Laufen</option><option value="strength">Stabi / Kraft</option>
+            <option value="mobility">Dehnen / Yoga</option>
+          </select>
+        </label>
+        <label>Ziel <input type="number" name="target" min="0" step="0.5" required></label>
+        <label>Einheit
+          <select name="metric"><option value="hours">Stunden</option><option value="km">Kilometer</option></select>
+        </label>
+        <label>Zeitraum
+          <select name="period">
+            <option value="week">Pro Woche</option><option value="month">Pro Monat</option>
+            <option value="year">Pro Jahr</option><option value="custom">Eigener Zeitraum</option>
+          </select>
+        </label>
+        <label class="custom-range">Von <input type="date" name="start"></label>
+        <label class="custom-range">Bis <input type="date" name="end"></label>
+      </div>
+      <p class="muted small">Kilometer zählen nur importierte Aktivitäten. Bei Stunden wird Geplantes zusätzlich angezeigt.</p>
+      <div class="row-between">
+        <button type="button" id="btn-delete-goal" class="danger">Löschen</button>
+        <button type="button" id="btn-save-goal" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Analyse -->
+  <dialog id="analysis-dialog" class="wide">
+    <form method="dialog">
+      <div class="row-between">
+        <h2>Analyse</h2>
+        <div class="row">
+          <button type="button" id="btn-analysis-refresh" class="small" title="Garmin-Kennzahlen neu laden">↻ Garmin</button>
+          <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button type="button" data-tab="metrics">Kennzahlen</button>
+        <button type="button" data-tab="power">Leistungskurve</button>
+        <button type="button" data-tab="ef">Effizienz</button>
+        <button type="button" data-tab="zones">Zonen</button>
+        <button type="button" data-tab="race">Renntag</button>
+      </div>
+      <div id="analysis-body"></div>
+    </form>
+  </dialog>
+
+  <!-- Feedback zu einer importierten Aktivität -->
+  <dialog id="feedback-dialog">
+    <form method="dialog" id="feedback-form">
+      <div class="row-between">
+        <h2 id="feedback-title">Aktivität</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <div id="feedback-facts" class="facts"></div>
+      <div id="feedback-zones"></div>
+      <div class="row feedback-plan">
+        <label>Geplantes Workout <select id="feedback-plan-select"></select></label>
+        <button type="button" id="btn-open-plan" class="small">Plan öffnen</button>
+      </div>
+      <div class="grid">
+        <label>Anstrengung (RPE 0–10) <select name="rpe"></select></label>
+        <label>Befinden <select name="feel"></select></label>
+        <label class="wide">Notiz <textarea name="note" rows="2" placeholder="Wie lief's? Beine, Wetter, Verpflegung …"></textarea></label>
+      </div>
+      <p class="muted small">RPE und Befinden fließen in die Vorschläge ein (z. B. zu hart gefahrene lockere Einheiten).</p>
+      <div class="row-between">
+        <span></span>
+        <button type="button" id="btn-save-feedback" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Plan-Import -->
+  <dialog id="plan-dialog">
+    <form method="dialog" id="plan-form">
+      <div class="row-between">
+        <h2>Trainingsplan importieren (JSON)</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <p class="muted small">
+        Wochen 1–4 mit Workouts pro Tag (mon…sun). Workouts mit <code>steps</code> oder <code>template</code> +
+        <code>minutes</code>. Format siehe Beispiel und README („Plan-Import“).
+      </p>
+      <div class="row">
+        <input type="file" id="plan-file" accept=".json,application/json">
+        <button type="button" id="btn-plan-example" class="small">Beispiel einfügen</button>
+      </div>
+      <textarea id="plan-json" rows="12" spellcheck="false" placeholder='{ "name": "…", "weeks": [ { "week": 1, "days": { "mon": [ … ] } } ] }'></textarea>
+      <div class="row">
+        <label class="inline">Start (Montag Woche 1) <input type="date" name="start"></label>
+        <label class="inline"><input type="checkbox" name="replace"> geplante Workouts im Zeitraum ersetzen</label>
+      </div>
+      <div id="plan-preview"></div>
+      <div class="row-between">
+        <button type="button" id="btn-plan-check">Prüfen</button>
+        <button type="button" id="btn-plan-import" class="primary" disabled>Importieren</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="settings">
+    <form method="dialog" id="settings-form">
+      <div class="row-between">
+        <h2>Einstellungen</h2>
+        <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
+      </div>
+      <fieldset>
+        <legend>Schwellen</legend>
+        <div class="grid">
+          <label>FTP Rad (Watt) <input type="number" name="ftp"></label>
+          <label>LTHR Rad (bpm) <input type="number" name="lthr_ride"></label>
+          <label>LTHR Laufen (bpm) <input type="number" name="lthr_run"></label>
+          <label>Schwellentempo Laufen (min/km) <input name="threshold_pace" placeholder="4:30"></label>
+          <label>CSS Schwimmen (min/100 m) <input name="css" placeholder="1:26"></label>
+          <label>Max-Puls <input type="number" name="max_hr"></label>
+          <label>Gewicht (kg) <input type="number" name="weight" step="0.1" min="0"></label>
+          <label title="Gewicht vorher − nachher + getrunkene Menge, geteilt durch die Stunden">Schweißrate (l/h, 0 = unbekannt)
+            <input type="number" name="sweat_rate" step="0.05" min="0" max="4"></label>
+        </div>
+        <label class="inline"><input type="checkbox" name="plant_based"> Vegetarisch/vegan (Ernährungshinweise mit pflanzlichem Protein)</label>
+        <label class="inline"><input type="checkbox" name="garmin_profile"> FTP, LTHR Rad/Laufen, Max-Puls und Schwellentempo bei jedem Öffnen von Garmin übernehmen</label>
+        <span id="garmin-profile-at" class="muted small"></span>
+      </fieldset>
+      <fieldset>
+        <legend>Wettkampf &amp; Umfang</legend>
+        <div class="grid">
+          <label>Wettkampf <input name="goal_name" placeholder="z. B. Ironman Hamburg"></label>
+          <label>Datum <input type="date" name="goal_date"></label>
+          <label>Art <select name="race_type"></select></label>
+          <label>Wochenstunden (Belastungswoche) <input type="number" name="week_hours" min="0" step="0.5"></label>
+          <label>Entlastung jede n-te Woche <input type="number" name="recovery_every" min="0"></label>
+          <label>Zyklusstart (Montag 1. Belastungswoche, leer = vom Wettkampf rückwärts) <input type="date" name="cycle_start"></label>
+          <label>Taper-Wochen inkl. Rennwoche (0 = Standard) <input type="number" name="taper_weeks" min="0" max="4"></label>
+          <label>Ziel-CTL vor dem Tapering (0 = aus) <input type="number" name="target_ctl" min="0" step="1"></label>
+          <label>Zwift-Ordner (leer = automatisch) <input name="zwift_dir"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Weitere Wettkämpfe – B: Mini-Taper + Erholung · C: wird durchtrainiert</legend>
+        <div id="races"></div>
+        <div class="row race-add">
+          <input id="race-name" placeholder="Name, z. B. 70.3 Kraichgau">
+          <input id="race-date" type="date">
+          <select id="race-priority"><option value="B">B</option><option value="C">C</option></select>
+          <select id="race-type"></select>
+          <button type="button" id="btn-add-race" class="small">+ Hinzufügen</button>
+        </div>
+        <p id="race-type-hint" class="muted small"></p>
+      </fieldset>
+      <fieldset class="row">
+        <legend>Automatisch senden beim Speichern</legend>
+        <label class="inline"><input type="checkbox" name="auto_sync" value="garmin"> Garmin</label>
+        <label class="inline"><input type="checkbox" name="auto_sync" value="intervals"> intervals.icu / Wahoo</label>
+        <label class="inline"><input type="checkbox" name="auto_sync" value="zwift"> Zwift (nur Rad/Lauf)</label>
+        <label class="inline"><input type="checkbox" name="auto_sync" value="google"> Google Kalender</label>
+        <label class="inline">Kalendername <input name="google_calendar" style="width:8em"></label>
+        <button type="button" id="btn-bulk-google" class="small">Geplante Workouts jetzt an Google senden</button>
+      </fieldset>
+      <fieldset>
+        <legend>Wochenmuster – Einheiten pro Tag (keine = Ruhetag)</legend>
+        <div id="pattern"></div>
+      </fieldset>
+      <div class="row-between">
+        <button type="button" id="btn-open-setup" class="small">Einrichtung / Garmin verbinden …</button>
+        <button type="button" id="btn-save-settings" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
