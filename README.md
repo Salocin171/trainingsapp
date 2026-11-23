@@ -81,7 +81,7 @@ Cloud-Einrichtung nötig:
    am besten ein eigener Kalender nur für Trainings).
 2. Beim ersten Mal fragt macOS: **„… möchte „Kalender“ steuern“ → OK.** Verpasst? *Systemeinstellungen → Datenschutz &
    Sicherheit → Automation* → beim Programm (Terminal bzw. „Python“ beim Autostart) **Kalender** einschalten.
-3. Einmal **„Geplante Workouts jetzt eintragen“** für die bereits geplanten Workouts.
+3. Einmal **„Geplante Workouts jetzt eintragen / aktualisieren“** für die bereits geplanten Workouts (trägt Fehlendes nach und korrigiert vorhandene Termine).
 
 Termine erscheinen auf anderen Geräten, sobald der Mac sie synchronisiert hat (er muss dafür an sein).
 

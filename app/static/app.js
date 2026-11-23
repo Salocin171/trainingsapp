@@ -1839,8 +1839,8 @@ async function main() {
   $("#btn-add-race").onclick = withBusy($("#btn-add-race"), addRace);
   $("#btn-bulk-calendar").onclick = withBusy($("#btn-bulk-calendar"), async () => {
     if (sform.mac_calendar.value !== state.settings.mac_calendar) await saveSettings();  // gewählten Kalender erst speichern
-    const res = await api("/api/sync/bulk", { method: "POST", body: { target: "calendar" } });
-    toast(`${res.sent} Workouts in den Kalender eingetragen` + (res.errors.length ? ` – Probleme: ${res.errors.join(" | ")}` : ""),
+    const res = await api("/api/sync/bulk", { method: "POST", body: { target: "calendar", resend: true } });
+    toast(`${res.sent} Workouts im Kalender eingetragen bzw. aktualisiert` + (res.errors.length ? ` – Probleme: ${res.errors.join(" | ")}` : ""),
       res.errors.length ? 10000 : 4000);
     refreshSidebar();
   });

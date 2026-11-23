@@ -163,6 +163,7 @@ def sync_workout(workout_id: int, body: SyncIn):
 class BulkSyncIn(BaseModel):
     target: str
     days: int = 120   # ab heute
+    resend: bool = False  # auch schon übertragene erneut senden (Kalender: fehlende/kaputte Termine reparieren)
 
 
 @app.post("/api/sync/bulk")
@@ -172,7 +173,7 @@ def bulk_sync(body: BulkSyncIn):
         raise HTTPException(400, f"Unbekanntes Ziel: {body.target}")
     today = date.today()
     pending = [w for w in db.list_workouts(today.isoformat(), (today + timedelta(days=body.days)).isoformat())
-               if w.get("status") != "done" and body.target not in (w.get("sync") or {})
+               if w.get("status") != "done" and (body.resend or body.target not in (w.get("sync") or {}))
                and supports(body.target, w.get("sport"))]
     errors = []
     for w in pending:

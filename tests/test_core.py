@@ -666,6 +666,16 @@ def test_calendar_push_update_move_remove(monkeypatch):
         maccal.push(w, {**SETTINGS, "mac_calendar": ""})
 
 
+def test_calendar_script_keeps_allday_events_one_day():
+    """Kalender-App: allday zuletzt bzw. Ende = Start + 1 Tag ergab 2-Tage-Termine; Datum per „set start date“
+    zu ändern ebenso (bzw. Fehler beim Verschieben nach hinten) – getestet gegen die echte Kalender-App."""
+    from app.sync import maccal
+
+    make = next(line for line in maccal._PUSH.splitlines() if "make new event" in line)
+    assert "with properties {allday event:true," in make and "end date:dt}" in make
+    assert "set start date" not in maccal._PUSH and "set end date" not in maccal._PUSH
+
+
 def test_calendar_pauses_after_missing_permission(monkeypatch):
     """Fehlt die macOS-Berechtigung, hängt nicht jedes Speichern: Pause, Auto-Sync überspringt, Auswahl fragt neu."""
     import subprocess

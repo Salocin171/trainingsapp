@@ -388,10 +388,11 @@ def delete_race(race_id: int) -> dict:
 
 
 @server.tool(annotations=WRITE)
-def send_planned_workouts(target: str, days: int = 120) -> dict:
+def send_planned_workouts(target: str, days: int = 120, resend: bool = False) -> dict:
     """Alle geplanten, noch nicht übertragenen Workouts der nächsten `days` Tage an ein Ziel senden:
-    garmin, intervals (→ Wahoo), zwift oder calendar (Kalender-App des Macs). Nur auf Wunsch des Nutzers."""
-    return _api("POST", "/api/sync/bulk", json={"target": target, "days": days})
+    garmin, intervals (→ Wahoo), zwift oder calendar (Kalender-App des Macs). resend=True sendet auch schon
+    übertragene erneut (z. B. Kalendertermine reparieren). Nur auf Wunsch des Nutzers."""
+    return _api("POST", "/api/sync/bulk", json={"target": target, "days": days, "resend": resend})
 
 
 @server.tool(annotations=READ)

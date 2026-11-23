@@ -108,16 +108,21 @@ _PUSH = '''on run argv
 				set found to (every event of c whose uid is theUid)
 				if (count of found) > 0 then
 					set e to item 1 of found
-					set summary of e to theTitle
-					set description of e to theDesc
-					set allday event of e to true
-					set start date of e to dt
-					set end date of e to dt + 1 * days
-					return uid of e
+					-- Datum nie per „set start/end date“ ändern: bei ganztägigen Terminen wird das Ende dann als
+					-- inklusiv gelesen (→ 2 Tage) bzw. ein späterer Start abgelehnt. Gleicher Tag → nur Text,
+					-- sonst (verschoben oder schon kaputt) löschen und unten neu anlegen.
+					if (allday event of e) and (start date of e) = dt and (end date of e) < dt + 1 * days then
+						set summary of e to theTitle
+						set description of e to theDesc
+						return uid of e
+					end if
+					delete e
 				end if
 			end if
 		end if
-		set e to make new event at end of events of c with properties {summary:theTitle, description:theDesc, start date:dt, end date:dt + 1 * days, allday event:true}
+		-- „ganztägig“ zuerst und Ende = Start: sonst entsteht erst ein 0–24-Uhr-Termin, den die Kalender-App beim
+		-- Umwandeln in ganztägig auf zwei Tage ausdehnt
+		set e to make new event at end of events of c with properties {allday event:true, summary:theTitle, description:theDesc, start date:dt, end date:dt}
 		return uid of e
 	end tell
 end run'''
