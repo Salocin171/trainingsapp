@@ -31,8 +31,12 @@ fi
 source scripts/ensure_venv.sh
 ensure_venv
 
-# Läuft die App als Hintergrunddienst (autostart.command)? Dann neu starten, damit sie die neue Version lädt.
-if [ -f ~/Library/LaunchAgents/de.trainingsapp.plist ]; then
+# Läuft die App als Hintergrunddienst (autostart.command)? Dann neu starten, damit sie die neue Version lädt –
+# zeigt der Dienst noch auf einen anderen Ordner (App verschoben, z. B. aus Downloads), ihn hierfür neu einrichten.
+if autostart_elsewhere; then
+  echo "Hintergrunddienst zeigt noch auf einen anderen Ordner – wird für diesen Ordner neu eingerichtet …"
+  zsh ./autostart.command
+elif [ -f ~/Library/LaunchAgents/de.trainingsapp.plist ]; then
   launchctl kickstart -k "gui/$(id -u)/de.trainingsapp"
 fi
 echo ""

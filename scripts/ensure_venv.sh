@@ -19,7 +19,16 @@ find_python() {
   return 1
 }
 
+# Ordner verschoben (z. B. aus Downloads)? Die Umgebung enthält feste Pfade und funktioniert dann nicht mehr.
+venv_moved() {
+  [ -d .venv ] && ! head -2 .venv/bin/pip 2>/dev/null | grep -qF "$(pwd -P)/.venv/bin/"
+}
+
 ensure_venv() {
+  if venv_moved; then
+    echo "Der App-Ordner wurde verschoben – Python-Umgebung wird neu eingerichtet …"
+    rm -rf .venv
+  fi
   # Vorhandene Umgebung mit zu altem Python ersetzen
   if [ -x .venv/bin/python ] && ! .venv/bin/python -c "import sys; sys.exit(0 if sys.version_info >= (3, $MIN_MINOR) else 1)"; then
     echo "Python-Umgebung ist zu alt – wird neu angelegt …"
@@ -41,4 +50,13 @@ ensure_venv() {
     .venv/bin/pip install -q --upgrade pip
   fi
   .venv/bin/pip install -q -r requirements.txt || { echo "Pakete konnten nicht installiert werden (Internet?)."; read -k1; exit 1; }
+}
+
+# Autostart (autostart.command) eingerichtet, aber für einen anderen Ordner (App verschoben oder zweite Kopie)?
+# Liefert 0, wenn der Dienst neu eingerichtet werden muss.
+autostart_elsewhere() {
+  local plist=~/Library/LaunchAgents/de.trainingsapp.plist dir
+  [ -f "$plist" ] || return 1
+  dir=$(plutil -extract WorkingDirectory raw "$plist" 2>/dev/null)
+  [ "$(cd "$dir" 2>/dev/null && pwd -P)" != "$(pwd -P)" ]
 }
