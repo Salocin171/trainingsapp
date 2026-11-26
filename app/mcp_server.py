@@ -216,10 +216,12 @@ def create_workout(date: str, sport: str, name: str = "", description: str = "",
             recovery/steady/cooldown, Zahl = Minuten, Suffix s = Sekunden, @von-bis in %) oder als Liste
             [{"kind": "warmup", "minutes": 10, "low": 65, "high": 75}, {"repeat": 4, "steps": [...]}].
             low/high in % (FTP bzw. Schwellentempo/CSS bzw. LTHR je nach target).
+            Eigenes Ziel je Schritt möglich: Kurzform "w15@70-80hr, 4x(i4@103-106pace, r2@60-70hr)" bzw.
+            "target": "hr" im Schritt – z. B. Einlaufen nach Puls, Intervalle nach Pace.
     time: Startzeit "07:30" (kommt vorne in den Namen). fueling: {"before", "during", "after", "day"} als Text →
             KH-Block in der Beschreibung; ohne fueling berechnet die App die Ernährung selbst.
     template: recovery, endurance, long, race_pace, tempo, sweetspot, threshold, vo2max, openers, brick, stabi, mobility.
-    target: power | pace | hr (Standard je Sport).
+    target: power | pace | hr (Standard je Sport) – gilt für alle Schritte ohne eigenes "target".
     circuit (Kraft/Stabi, Zirkel-Timer in der App, geht so auch an Garmin): {"work": 40, "rest": 20, "rounds": 3,
             "round_rest": 60, "exercises": ["Plank", {"name": "Bulg. Split Squat re, 3 s runter", "reps": 8},
             {"name": "Wandsitz", "seconds": 45}]} – Sekunden, rounds 1–60, eine Runde = alle Übungen einmal.
@@ -259,14 +261,20 @@ def _send(res: dict, send_to: list[str] | None) -> dict:
 
 
 @server.tool(annotations=WRITE)
-def update_workout(workout_id: int, date: str = "", name: str = "", description: str = "",
+def update_workout(workout_id: int, date: str = "", name: str = "", description: str = "", target: str = "",
                    steps: list[dict] | str | None = None, status: str = "", rpe: float | None = None,
                    feel: int | None = None, note: str = "", circuit: dict | None = None,
                    send_to: list[str] | None = None) -> dict:
     """Workout ändern (nur angegebene Felder). steps und circuit im selben Format wie bei create_workout.
+    target: power | pace | hr für alle Schritte ohne eigenes Ziel; eigenes Ziel je Schritt über die steps
+    (Kurzform "i20s@95-103pace", Liste "target": "pace").
     status: planned | done. rpe 0–10, feel 1–5. Bereits übertragene Workouts werden auf den Geräten aktualisiert."""
     w = _api("GET", f"/api/workouts/{workout_id}")
     w.pop("nutrition", None)
+    if target:
+        if target not in plan_import.TARGETS:
+            raise ToolError(f"Unbekanntes Ziel {target!r} (erlaubt: {', '.join(plan_import.TARGETS)})")
+        w["target"] = target
     if steps:
         try:
             w["steps"] = plan_import.build_workout({"sport": w["sport"], "steps": steps}, Date.today())["steps"]

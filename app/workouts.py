@@ -13,7 +13,8 @@ Ein Workout ist ein dict:
 
 Ein Schritt:
     {"kind": "warmup" | "interval" | "recovery" | "steady" | "cooldown",
-     "duration": Sekunden, "low": %, "high": %}
+     "duration": Sekunden, "low": %, "high": %,
+     "target": "power" | "pace" | "hr"}       # optional: weicht vom Ziel des Workouts ab (z. B. Einlaufen nach Puls)
 oder eine Wiederholung:
     {"kind": "repeat", "count": 5, "steps": [Schritt, ...]}
 """
@@ -23,6 +24,12 @@ STEP_KINDS = ("warmup", "interval", "recovery", "steady", "cooldown")
 SPORTS = ("swim", "ride", "run", "strength", "mobility", "other")
 # Ohne Intensitätsziel: TSS pauschal pro Stunde
 FLAT_TSS_PER_HOUR = {"strength": 40, "mobility": 10}
+TARGETS = ("power", "pace", "hr")
+
+
+def step_target(workout: dict, s: dict) -> str:
+    """Ziel eines Schritts: eigenes "target" des Schritts, sonst das des Workouts."""
+    return s.get("target") if s.get("target") in TARGETS else workout.get("target", "power")
 
 
 def step(kind: str, minutes: float, low: float, high: float | None = None) -> dict:

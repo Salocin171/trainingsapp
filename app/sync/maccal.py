@@ -10,7 +10,7 @@ import sys
 import time
 from datetime import date
 
-from ..workouts import estimate_tss, total_duration
+from ..workouts import estimate_tss, step_target, total_duration
 
 SPORT_DE = {"swim": "Schwimmen", "ride": "Radfahren", "run": "Laufen", "strength": "Stabi / Kraft",
             "mobility": "Dehnen / Yoga", "other": "Sonstiges"}
@@ -31,7 +31,7 @@ def _pace(seconds: float) -> str:
 def target_text(workout: dict, step: dict, settings: dict) -> str:
     """Zielbereich eines Schritts in Watt / Pace / Puls – wie die Anzeige im Editor."""
     low, high = float(step.get("low") or 0), float(step.get("high") or step.get("low") or 0)
-    sport, target = workout.get("sport"), workout.get("target", "power")
+    sport, target = workout.get("sport"), step_target(workout, step)
     if not (low or high) or sport in ("strength", "mobility"):
         return ""
     if target == "power":

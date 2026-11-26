@@ -12,7 +12,7 @@ from datetime import date, timedelta
 import httpx
 
 from .. import config
-from ..workouts import fmt_duration
+from ..workouts import fmt_duration, step_target
 
 BASE = "https://intervals.icu/api/v1"
 SPORT = {"ride": "Ride", "run": "Run", "swim": "Swim", "strength": "WeightTraining", "mobility": "Yoga",
@@ -30,7 +30,8 @@ def _http() -> httpx.Client:
     return httpx.Client(base_url=BASE, auth=("API_KEY", config.INTERVALS_API_KEY), timeout=20)
 
 
-def _line(s: dict, suffix: str) -> str:
+def _line(s: dict, workout: dict) -> str:
+    suffix = TARGET_SUFFIX.get(step_target(workout, s), "")
     low, high = round(s.get("low", 0)), round(s.get("high", s.get("low", 0)))
     if not low and not high:  # Pause, Stabi, Dehnen: nur Dauer
         return f"- {fmt_duration(s['duration'])}"
@@ -43,17 +44,16 @@ def _line(s: dict, suffix: str) -> str:
 
 def to_text(workout: dict) -> str:
     """Workout in der Textsyntax von intervals.icu (wird dort strukturiert geparst)."""
-    suffix = TARGET_SUFFIX.get(workout.get("target", "power"), "")
     blocks, current = [], []
     for s in workout.get("steps", []):
         if s.get("kind") == "repeat":
             if current:
                 blocks.append("\n".join(current))
                 current = []
-            lines = [f"{int(s['count'])}x"] + [_line(c, suffix) for c in s.get("steps", []) if c.get("kind") != "repeat"]
+            lines = [f"{int(s['count'])}x"] + [_line(c, workout) for c in s.get("steps", []) if c.get("kind") != "repeat"]
             blocks.append("\n".join(lines))
         else:
-            current.append(_line(s, suffix))
+            current.append(_line(s, workout))
     if current:
         blocks.append("\n".join(current))
     text = "\n\n".join(blocks)

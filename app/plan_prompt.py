@@ -121,6 +121,8 @@ def build(settings: dict, start: date, weeks: int, race_list: list[dict], ctl: f
               "- sport: swim | ride | run | strength | mobility. Tage: mon…sun. \"description\" (kurz) optional.",
               "- steps (Kurzform): w=Einwärmen, i=Intervall, r=Erholung, s=Konstant, c=Ausfahren; Zahl = Minuten, "
               "mit s = Sekunden (r20s); @von-bis in %; 4x(…) = Wiederholung.",
+              "- Schritt mit eigenem Ziel: hr / pace / power hinter die % (w15@70-80hr = Einwärmen nach % LTHR), "
+              "sonst gilt das \"target\" des Workouts.",
               "- % bedeutet: Rad % FTP, Laufen % der Schwellengeschwindigkeit, Schwimmen % der CSS-Geschwindigkeit "
               "(mehr % = schneller). Schwimmpausen ohne %.",
               f"- Zonen Rad: {_zones('ride')}",

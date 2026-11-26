@@ -157,6 +157,31 @@ def test_suggestions_match_week_hours():
     assert abs(hours - target) / target < 0.25
 
 
+def test_steps_can_use_their_own_target():
+    """Einlaufen nach Puls, Intervalle nach Pace – unabhängig vom Ziel des Workouts."""
+    from app import plan_import
+    from app.sync import maccal
+    settings = {**SETTINGS, "lthr_run": 170, "threshold_pace": 240}
+    run = {"sport": "run", "name": "Tempo", "target": "pace", "steps": [
+        step("warmup", 15, 70, 80) | {"target": "hr"},
+        repeat(4, step("interval", 4, 100), step("recovery", 2, 60, 70) | {"target": "hr"}),
+    ]}
+    first, rep = garmin.to_garmin_json(run, settings)["workoutSegments"][0]["workoutSteps"]
+    assert first["targetType"] == garmin.TARGET_TYPES["hr"] and first["targetValueOne"] == pytest.approx(119)
+    on, off = rep["workoutSteps"]
+    assert on["targetType"] == garmin.TARGET_TYPES["pace"] and on["targetValueOne"] == pytest.approx(1000 / 240, abs=0.001)
+    assert off["targetType"] == garmin.TARGET_TYPES["hr"]
+    text = maccal.event_text(run, settings)[1]
+    assert "119–136 bpm" in text and "4:00 /km" in text
+    assert "- 15m ramp 70-80% LTHR" in intervals.to_text(run)
+    assert "- 4m 100% Pace" in intervals.to_text(run)
+    steps = plan_import.compact_steps("w15@70-80hr, 4x(i4@100, r2@60-70 puls)", "Test")
+    assert steps[0]["target"] == "hr" and "target" not in steps[1]["steps"][0]
+    assert plan_import._steps("w15@70-80hr, i4@100", "Test")[0]["target"] == "hr"
+    with pytest.raises(plan_import.PlanError):
+        plan_import._steps([{"kind": "steady", "minutes": 5, "low": 70, "target": "rpe"}], "Test")
+
+
 def test_swim_target_uses_css():
     workout = {"sport": "swim", "target": "pace", "steps": [step("steady", 10, 100)]}
     target = garmin.to_garmin_json(workout, {**SETTINGS, "css": 86})["workoutSegments"][0]["workoutSteps"][0]
@@ -1031,3 +1056,18 @@ def test_ef_series_scales_with_performance_level():
     assert weak["slope"] == pytest.approx(2 * strong["slope"], abs=0.002)  # zu wenig Paare → Standard, skaliert mit FTP
     assert weak["slope"] == pytest.approx(110 / 192.5, abs=0.001)
     assert [p["at_ref"] for p in weak["points"]] == pytest.approx([p["at_ref"] / 2 for p in strong["points"]], abs=0.1)
+
+
+def test_step_target_survives_save_and_unknown_step_fields_are_rejected(tmp_path):
+    from app import plan_import
+    db.set_db_path(tmp_path / "t.db")
+    w = plan_import.build_workout({"sport": "run", "target": "hr", "steps": "w10@70-80, 6x(i20s@95-103pace, r60s)"},
+                                  date(2026, 11, 26))
+    saved = db.get_workout(db.save_workout(w)["id"])
+    on = saved["steps"][1]["steps"][0]
+    assert on["target"] == "pace" and "target" not in saved["steps"][0]
+    gs = garmin.to_garmin_json(saved, {**SETTINGS, "threshold_pace": 240})["workoutSegments"][0]["workoutSteps"]
+    assert gs[0]["targetType"] == garmin.TARGET_TYPES["hr"]
+    assert gs[1]["workoutSteps"][0]["targetType"] == garmin.TARGET_TYPES["pace"]
+    with pytest.raises(plan_import.PlanError, match="target_type"):
+        plan_import._steps([{"kind": "interval", "seconds": 20, "low": 95, "high": 103, "target_type": "pace"}], "T")

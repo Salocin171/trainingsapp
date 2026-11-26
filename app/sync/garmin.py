@@ -13,7 +13,7 @@ import re
 
 from .. import config
 from ..templates import circuit_exercises, circuit_for
-from ..workouts import flatten, repeat
+from ..workouts import flatten, repeat, step_target
 
 SPORT_TYPES = {
     "run": {"sportTypeId": 1, "sportTypeKey": "running"},
@@ -127,7 +127,7 @@ def threshold_speed(sport: str, settings: dict) -> float:
 
 
 def _target(workout: dict, s: dict, settings: dict) -> dict:
-    target, sport = workout.get("target", "power"), workout.get("sport")
+    target, sport = step_target(workout, s), workout.get("sport")
     low, high = float(s.get("low", 0)) / 100, float(s.get("high", s.get("low", 0))) / 100
     if sport in ("strength", "mobility") or not low:
         return {"targetType": TARGET_TYPES["none"]}

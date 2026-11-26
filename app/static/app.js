@@ -12,6 +12,10 @@ const WEEKDAYS = [["mon", "Mo"], ["tue", "Di"], ["wed", "Mi"], ["thu", "Do"], ["
 const SLOT_TYPES = { recovery: "Regeneration", easy: "Locker", hard: "Hart", long: "Lang" };
 const RACE_TYPES = { ironman: "Ironman (Langdistanz)", half: "Ironman 70.3 (Mitteldistanz)", other: "Anderer Wettkampf" };
 const DEFAULT_TARGET = { ride: "power", run: "pace", swim: "pace" };
+// Ziel je Schritt (überschreibt das Ziel des Workouts): kurze Namen für die Auswahl im Schritt
+const TARGET_SHORT = { power: "Watt", pace: "Pace", hr: "Puls" };
+const TARGETS_FOR = { ride: ["power", "hr"], run: ["pace", "hr", "power"], swim: ["pace", "hr"] };
+const stepTarget = (s, workoutTarget) => (s.target in TARGET_SHORT ? s.target : workoutTarget);
 const fmtDate = (iso, opts = { day: "2-digit", month: "2-digit" }) => new Date(iso).toLocaleDateString("de-DE", opts);
 const fmtHours = (h) => `${String(Math.round(h * 10) / 10).replace(".", ",")} h`;
 const isoWeek = (iso) => {
@@ -542,7 +546,8 @@ function absoluteTarget(pct, sport = form.sport.value, target = form.target.valu
   return secToPace((sport === "swim" ? st.css : st.threshold_pace) / (pct / 100));  // mehr % = schneller
 }
 
-function absoluteRange(s, sport = form.sport.value, target = form.target.value) {
+function absoluteRange(s, sport = form.sport.value, workoutTarget = form.target.value) {
+  const target = stepTarget(s, workoutTarget);
   if (["strength", "mobility"].includes(sport) || !(Number(s.low) || Number(s.high))) return "";
   const unit = target === "power" ? "W" : target === "hr" ? "bpm" : sport === "swim" ? "/100 m" : "/km";
   const lo = absoluteTarget(Number(s.low), sport, target), hi = absoluteTarget(Number(s.high), sport, target);
@@ -557,17 +562,27 @@ function stepRow(s, list, index) {
     <label class="inline"><input type="number" min="0.25" step="0.25" value="${s.duration / 60}"><span class="unit">min</span></label>
     <label class="inline"><input type="number" min="0" max="200" value="${s.low}"><span class="unit">%</span></label>
     <label class="inline"><input type="number" min="0" max="200" value="${s.high}"><span class="unit">%</span></label>
+    <select class="step-target" title="Woran sich dieser Schritt orientiert – unabhängig von den anderen Schritten"></select>
     <span class="abs" title="Zielbereich aus deinen Schwellenwerten"></span>
     <button type="button" class="ghost" title="Entfernen">✕</button>`;
-  const [kind, dur, low, high] = row.querySelectorAll("select, input");
+  const [kind, dur, low, high, target] = row.querySelectorAll("select, input");
   const abs = row.querySelector(".abs");
+  // Ziel je Schritt: z. B. Einlaufen nach Puls, Intervalle nach Pace – leer heißt „wie das Workout“
+  const sportChoices = TARGETS_FOR[form.sport.value] || [];
+  const choices = sportChoices.length ? [...new Set([form.target.value, ...sportChoices])] : [];
+  if (s.target && !choices.includes(s.target)) delete s.target;  // z. B. nach Wechsel Laufen → Rad
+  target.hidden = !choices.length;
+  target.innerHTML = choices.map((k) => `<option value="${k}">${TARGET_SHORT[k]}</option>`).join("");
+  target.value = stepTarget(s, form.target.value);
   const update = () => {
     Object.assign(s, { kind: kind.value, duration: Math.round(Number(dur.value) * 60), low: Number(low.value), high: Number(high.value) });
+    if (choices.length && target.value !== form.target.value) s.target = target.value;
+    else delete s.target;
     abs.textContent = absoluteRange(s);
     updatePreview();
   };
   abs.textContent = absoluteRange(s);
-  [kind, dur, low, high].forEach((el) => el.addEventListener("input", update));
+  [kind, dur, low, high, target].forEach((el) => el.addEventListener("input", update));
   row.querySelector("button").onclick = () => { list.splice(index, 1); renderSteps(); };
   return row;
 }
