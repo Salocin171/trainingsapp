@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import analysis, compliance, config, conflicts, db, availability, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, volume
+from . import analysis, compliance, config, conflicts, db, availability, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, updater, volume
 from .load import compute_series, daily_tss
 from .sync import TARGETS, status as sync_status, supports
 from .workouts import summarize
@@ -610,3 +610,18 @@ def setup_garmin(body: GarminLoginIn):
 @app.get("/api/status")
 def get_status():
     return sync_status()
+
+
+# --- Updates von GitHub ----------------------------------------------------------
+
+@app.get("/api/update")
+def update_status(force: bool = False):
+    return updater.status(force)
+
+
+@app.post("/api/update")
+def update_apply():
+    try:
+        return updater.apply()
+    except updater.UpdateError as e:
+        raise HTTPException(409, str(e)) from None

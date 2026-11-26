@@ -24,7 +24,7 @@ Läuft lokal auf deinem Mac (Python-Server + Browser-Oberfläche). Nur für macO
    Später erneut über **Einstellungen → Einrichtung / Garmin verbinden …**
 4. Optional **`autostart.command`** doppelklicken: Die App läuft dann immer im Hintergrund (siehe unten).
 
-**Updates:** **`Update.command`** doppelklicken – holt die neueste Version und startet die App neu.
+**Updates:** Gibt es eine neue Version, erscheint oben in der App der Button **„⬆ Update“** (die App schaut alle 30 Minuten nach) – ein Klick holt sie, die Seite lädt danach neu. Alternativ **`Update.command`** doppelklicken; bei einer als ZIP geladenen App einmal nötig, danach geht es per Button.
 
 **Deine Daten** gehören nur dir und bleiben auf deinem Mac: Trainingsdaten und Einstellungen in `data/training.db`,
 Anmeldungen (Garmin) in `~/.trainingsapp/`. Beides ist nicht im Git – Updates überschreiben es nicht, und
