@@ -177,13 +177,14 @@ def _flat(steps):
 @server.tool(annotations=READ)
 def get_analysis(section: str = "all") -> dict:
     """Auswertungen. section: 'metrics' (Garmin: Trainingsstatus, VO2max, Endurance Score, Hitzeanpassung,
-    Renn-Prognosen, FTP-Verlauf), 'power' (Leistungskurve + FTP-Schätzungen), 'efficiency' (Efficiency Factor
-    Rad/Laufen mit Trend, letzte 10 Werte), 'zones' (Zeit in Pulszonen pro Woche) oder 'all'."""
+    Renn-Prognosen, FTP-Verlauf), 'power' (Leistungskurve + FTP-Schätzungen), 'efficiency' (Leistung bzw. Tempo bei
+    Referenzpuls, Rad/Laufen mit Trend, letzte 10 Werte), 'zones' (Zeit in Pulszonen pro Woche) oder 'all'."""
     d = _api("GET", "/api/analysis")
     out = {
         "metrics": d.get("garmin"),
         "power": d["power_curve"],
-        "efficiency": {sport: {"trend_pct_28d": v["trend"], "unit": v["unit"], "count": len(v["points"]),
+        "efficiency": {sport: {"trend_pct_28d": v["trend"], "value": f'{v["at_ref_unit"]} bei {v["ref_hr"]} bpm (at_ref)',
+                               "unit_raw_ef": v["unit"], "count": len(v["points"]), "excluded": len(v["excluded"]),
                                "last": v["points"][-10:]} for sport, v in d["efficiency"].items()},
         "zones": [{**w, "zone_minutes": [_minutes(z) for z in w.pop("zones")]} for w in d["zones"]],
     }

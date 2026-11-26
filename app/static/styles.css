@@ -471,3 +471,9 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); }
 #setup-form code { font-size: 12px; }
 .wide-note { flex-basis: 100%; margin: 4px 0 0; }
 select.mac-calendar { max-width: 14em; }
+
+/* Analyse → Effizienz: aufklappbare Regeln */
+.ef-rules { margin: 4px 0 12px; }
+.ef-rules summary { cursor: pointer; color: var(--muted); }
+.ef-rules ul { margin: 6px 0 0; padding-left: 18px; }
+.ef-rules li { margin: 4px 0; line-height: 1.45; }

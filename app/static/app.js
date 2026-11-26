@@ -1344,9 +1344,15 @@ function chart({ series, x = "time", yFormat = (v) => Math.round(v), refs = [], 
   }
   for (const s of series) {
     const p = [...s.points].sort((a, b) => xv(a) - xv(b));
-    if (s.line !== false && p.length > 1) {
+    // Linie in Abschnitte teilen: Punkte mit gap: true beginnen einen neuen Abschnitt (Datenlücke)
+    const segments = s.line === false ? [] : p.reduce((acc, q) => {
+      if (q.gap || !acc.length) acc.push([]);
+      acc[acc.length - 1].push(q);
+      return acc;
+    }, []);
+    for (const seg of segments.filter((g) => g.length > 1)) {
       out += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"
-        ${s.dashed ? 'stroke-dasharray="5 4"' : ""} points="${p.map((q) => `${sx(xv(q))},${sy(q.y)}`).join(" ")}"/>`;
+        ${s.dashed ? 'stroke-dasharray="5 4"' : ""} points="${seg.map((q) => `${sx(xv(q))},${sy(q.y)}`).join(" ")}"/>`;
     }
     for (const q of p) {  // sichtbarer Punkt + größere unsichtbare Trefferfläche mit Tooltip
       if (s.dots) out += `<circle cx="${sx(xv(q))}" cy="${sy(q.y)}" r="3.5" fill="${s.color}" stroke="var(--panel)" stroke-width="1.5"/>`;
@@ -1437,27 +1443,59 @@ function powerTab(d) {
 }
 
 function efTab(d) {
-  const block = (sport, label, color, digits) => {
+  const median = (v) => { const a = [...v].sort((x, y) => x - y), m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+  const DAY = 864e5;
+  // Laufen: m/min → Tempo min:ss/km
+  const pace = (mpm) => { const sec = 60000 / mpm; return `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`; };
+  const block = (sport, label, color) => {
     const e = d.efficiency[sport];
-    const points = e.points.map((p) => ({ x: p.date, y: p.ef, tip: `${fmtDate(p.date)} ${p.name}: ${p.ef.toFixed(digits)}` }));
-    // gleitender 28-Tage-Mittelwert als Trendlinie
-    const trend = points.map((p) => {
+    const isRun = sport === "run";
+    const fmt = isRun ? (v) => `${pace(v)}/km` : (v) => `${Math.round(v)} W`;
+    const what = isRun ? `Tempo bei ${e.ref_hr} bpm` : `Watt bei ${e.ref_hr} bpm`;
+    const points = e.points.map((p) => ({ x: p.date, y: p.at_ref,
+      tip: `${fmtDate(p.date)} ${p.name}: ${fmt(p.at_ref)} bei ${e.ref_hr} bpm (EF roh ${p.ef.toFixed(2)})` }));
+    // gleitender 28-Tage-Median, nur wo mindestens 3 Einheiten im Fenster liegen – sonst Lücke statt Linie
+    let gap = false;
+    const trend = [];
+    for (const p of points) {
       const t = new Date(p.x).getTime();
-      const win = points.filter((q) => { const u = new Date(q.x).getTime(); return u <= t && u > t - 28 * 864e5; });
-      return { x: p.x, y: win.reduce((a, q) => a + q.y, 0) / win.length, tip: `28-Tage-Mittel: ${(win.reduce((a, q) => a + q.y, 0) / win.length).toFixed(digits)}` };
-    });
-    const trendText = e.trend == null ? "zu wenig Daten" : `${e.trend > 0 ? "+" : ""}${e.trend} % (28 Tage vs. davor)`;
-    return `<h3>${label} <span class="label">${e.unit}</span></h3>
-      <div class="tiles">${tile("Trend", trendText)}${tile("Einheiten", e.points.length, "locker & gleichmäßig")}</div>
-      ${chart({ yFormat: (v) => v.toFixed(digits), series: [
+      const win = points.filter((q) => { const u = new Date(q.x).getTime(); return u <= t && u > t - 28 * DAY; });
+      if (win.length < 3) { gap = true; continue; }
+      const y = median(win.map((q) => q.y));
+      trend.push({ x: p.x, y, gap, tip: `28-Tage-Median (${win.length} Einheiten): ${fmt(y)}` });
+      gap = false;
+    }
+    const trendText = e.trend == null
+      ? `zu wenig Daten (${e.n_recent} bzw. ${e.n_before} Einheiten, nötig je 3)`
+      : `${e.trend > 0 ? "+" : ""}${e.trend} %`;
+    const excluded = (e.excluded || []).slice().reverse();
+    return `<h3>${label} <span class="label">${what}</span></h3>
+      <div class="tiles">${tile("Trend", trendText, e.trend == null ? "" : `Median 28 Tage (${e.n_recent}) vs. davor (${e.n_before})`)}
+        ${tile("Einheiten", e.points.length, "vergleichbar")}${tile("Nicht gezählt", excluded.length, "siehe Liste unten")}
+        ${tile("Referenzpuls", `${e.ref_hr} bpm`, isRun ? `+1 bpm ≈ ${(1 / e.slope).toFixed(1)} m/min` : `+1 bpm ≈ ${(1 / e.slope).toFixed(1)} W`)}</div>
+      ${chart({ yFormat: isRun ? pace : (v) => Math.round(v), series: [
         { name: "Einzelne Einheiten", color, dots: true, line: false, points },
-        { name: "28-Tage-Mittel", color: "var(--text)", points: trend },
-      ] })}`;
+        { name: "28-Tage-Median", color: "var(--text)", points: trend },
+      ] })}
+      ${excluded.length ? `<details class="small"><summary class="muted">Nicht gezählte Einheiten (${excluded.length})</summary>
+        <table class="small">${excluded.map((x) => `<tr><td>${fmtDate(x.date)}</td><td>${escapeHtml(x.name)}</td>
+          <td>EF ${x.ef.toFixed(2)}</td><td class="muted">${escapeHtml(x.reason)}</td></tr>`).join("")}</table></details>` : ""}`;
   };
-  return `<p class="muted small">Efficiency Factor = Leistung (Rad: NP) bzw. steigungsbereinigtes Tempo (Laufen) pro Herzschlag.
-      Steigt er bei lockeren Einheiten, wächst die aerobe Grundlage. Nur lockere, mindestens 45 (Rad) bzw. 30 min (Laufen)
-      lange Einheiten zählen. Hitze, Schlaf und Koffein verfälschen einzelne Werte – auf den Trend achten.</p>
-    ${block("ride", "Rad", "var(--ride)", 2)}${block("run", "Laufen", "var(--run)", 2)}`;
+  const { ride, run } = d.efficiency;
+  const np = ride.np_range ? `NP ${ride.np_range[0]}–${ride.np_range[1]} W (45–80 % FTP)` : "NP 45–80 % FTP";
+  return `<p class="muted small"><b>Watt bzw. Tempo bei gleichem Puls.</b> Steigt der Wert, wächst die Grundlage.
+      Punkte = einzelne Einheiten, Linie = Median über 28 Tage.</p>
+    <details class="small ef-rules"><summary>Wie wird gerechnet, welche Einheiten zählen?</summary>
+      <ul>
+        <li><b>Umrechnung:</b> Jede Einheit wird auf deinen Referenzpuls umgerechnet (Rad ${ride.ref_hr ?? "–"} bpm,
+          Laufen ${run.ref_hr ?? "–"} bpm = Median deiner Einheiten). So misst der Wert die Form, nicht die Intensität.</li>
+        <li><b>Rad:</b> 45 min–3 h · ${np} · gleichmäßig (NP höchstens 5 % auf der Rolle bzw. 12 % draußen über Ø-Leistung)</li>
+        <li><b>Laufen:</b> 30–90 min · draußen · kein Koppellauf</li>
+        <li><b>Beides:</b> höchstens 10 % in Zone 4–5 · Puls gleichmäßig · keine Intervalle (anaerober Trainingseffekt unter 1,5)
+          · kein Wettkampf · nicht über 28 °C</li>
+      </ul>
+    </details>
+    ${block("ride", "Rad", "var(--ride)")}${block("run", "Laufen", "var(--run)")}`;
 }
 
 // ---------------------------------------------------------------- Renntag

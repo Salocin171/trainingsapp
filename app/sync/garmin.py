@@ -270,6 +270,7 @@ def activity_tss(a: dict, settings: dict, sport: str = "") -> float:
     return hours * 50
 
 
+INDOOR_TYPES = {"indoor_cycling", "virtual_ride", "treadmill_running", "indoor_running", "virtual_run"}
 MMP_DURATIONS = (1, 5, 10, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200)  # Sekunden
 
 
@@ -279,10 +280,17 @@ def activity_metrics(a: dict, sport: str) -> dict:
     speed/gap in m/s (gap = steigungsbereinigt), hr_zones = Sekunden in Pulszone 1–5,
     mmp = beste Durchschnittsleistung je Dauer (nur Rad).
     """
+    type_key = (a.get("activityType") or {}).get("typeKey", "")
     m = {
         "avg_hr": a.get("averageHR"), "max_hr": a.get("maxHR"), "np": a.get("normPower"),
         "avg_power": a.get("avgPower"), "speed": a.get("averageSpeed"), "gap": a.get("avgGradeAdjustedSpeed"),
         "if": a.get("intensityFactor"),
+        # für die EF-Regeln (analysis._not_comparable): Koppellauf, Rolle/Laufband, Wettkampf, Intervalle, Hügel
+        "start_time": a.get("startTimeLocal"), "indoor": type_key in INDOOR_TYPES,
+        "event_type": (a.get("eventType") or {}).get("typeKey"),
+        "anaerobic_te": a.get("anaerobicTrainingEffect"), "elevation_gain": a.get("elevationGain"),
+        # Uhrsensor: das Maximum ist vom Handgelenk aufgeheizt, das Minimum liegt näher an der Lufttemperatur
+        "temp": None if type_key in INDOOR_TYPES else a.get("minTemperature"),
     }
     zones = [a.get(f"hrTimeInZone_{i}") for i in range(1, 6)]
     if any(zones):

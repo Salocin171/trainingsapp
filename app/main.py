@@ -556,10 +556,16 @@ def get_analysis(refresh: bool = False):
             garmin_error = str(e)
             if cached:
                 fetched_at, garmin_metrics = cached
+    settings = db.get_settings()
+    ftp = settings["ftp"]
+    # FTP am Tag der Einheit (Garmin-Verlauf), heute = Einstellung
+    ftp_history = [{"date": e["date"], "watts": e["value"]} for e in (garmin_metrics or {}).get("ftp_series") or []]
+    ftp_history.append({"date": today.isoformat(), "watts": ftp})
     return {
-        "efficiency": analysis.ef_series(activities, today),
+        "efficiency": analysis.ef_series(activities, today, ftp_history if len(ftp_history) > 1 else ftp,
+                                         settings.get("threshold_pace") or 0),
         "zones": analysis.zone_weeks(activities, today),
-        "power_curve": analysis.power_curve(activities, today, db.get_settings()["ftp"]),
+        "power_curve": analysis.power_curve(activities, today, ftp),
         "garmin": garmin_metrics, "garmin_at": fetched_at, "garmin_error": garmin_error,
     }
 

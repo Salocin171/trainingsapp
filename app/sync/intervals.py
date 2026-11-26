@@ -106,5 +106,7 @@ def import_activities(settings: dict, days: int = 120) -> list[dict]:
         "metrics": {k: v for k, v in {
             "avg_hr": a.get("average_heartrate"), "np": a.get("icu_weighted_avg_watts"),
             "speed": a.get("average_speed"), "hr_zones": a.get("icu_hr_zone_times"),
-        }.items() if v},
+            "avg_power": a.get("icu_average_watts"), "start_time": a.get("start_date_local"),
+            "elevation_gain": a.get("total_elevation_gain"),
+        }.items() if v} | ({"indoor": True} if a.get("type") in ("VirtualRide", "VirtualRun") or a.get("trainer") else {}),
     } for a in r.json() if a.get("start_date_local")]
