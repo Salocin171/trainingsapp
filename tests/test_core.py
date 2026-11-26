@@ -1106,3 +1106,17 @@ def test_updater_detects_and_applies_new_commits(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ROOT", tmp_path / "zip-download")  # ohne .git: kein Button, Hinweis auf Update.command
     (tmp_path / "zip-download").mkdir()
     assert updater.status(force=True)["supported"] is False
+
+
+def test_autostart_status_knows_the_folder(tmp_path, monkeypatch):
+    import plistlib
+    from app import autostart, config
+    plist = tmp_path / "de.trainingsapp.plist"
+    monkeypatch.setattr(autostart, "PLIST", plist)
+    monkeypatch.setattr(autostart, "_service_pid", lambda: None)
+    assert autostart.status()["installed"] is False
+    plist.write_bytes(plistlib.dumps({"Label": "de.trainingsapp", "WorkingDirectory": str(tmp_path / "anderswo")}))
+    s = autostart.status()
+    assert s["installed"] and not s["this_folder"] and not s["active"]
+    plist.write_bytes(plistlib.dumps({"Label": "de.trainingsapp", "WorkingDirectory": str(config.ROOT)}))
+    assert autostart.status()["this_folder"]

@@ -571,7 +571,7 @@ function stepRow(s, list, index) {
   const sportChoices = TARGETS_FOR[form.sport.value] || [];
   const choices = sportChoices.length ? [...new Set([form.target.value, ...sportChoices])] : [];
   if (s.target && !choices.includes(s.target)) delete s.target;  // z. B. nach Wechsel Laufen → Rad
-  target.hidden = !choices.length;
+  target.style.visibility = choices.length ? "" : "hidden";  // Platz in der Zeile behalten
   target.innerHTML = choices.map((k) => `<option value="${k}">${TARGET_SHORT[k]}</option>`).join("");
   target.value = stepTarget(s, form.target.value);
   const update = () => {
@@ -672,7 +672,41 @@ function openSetup() {
   $("#btn-setup-garmin").textContent = connected ? "Neu verbinden" : "Mit Garmin verbinden";
   $("#setup-mfa").hidden = true;
   suform.garmin_code.value = suform.garmin_password.value = "";
+  $("#setup-autostart").hidden = true;
+  refreshAutostart().catch(() => {});
   setupDialog.showModal();
+}
+
+// Autostart: autostart.command für genau diesen Ordner ausführen (startet den Server als Hintergrunddienst neu)
+function renderAutostart(a, text = "") {
+  $("#setup-autostart").hidden = !a.supported;
+  $("#autostart-folder").textContent = a.folder;
+  const ok = a.installed && a.this_folder && a.active;
+  $("#btn-autostart").textContent = ok ? "Neu einrichten" : "Autostart einrichten";
+  $("#autostart-state").textContent = text || (ok ? "✓ Läuft als Hintergrunddienst für diesen Ordner"
+    : a.installed && !a.this_folder ? "Eingerichtet, aber für einen anderen Ordner – hier neu einrichten"
+      : a.installed ? "Eingerichtet, läuft gerade aber nicht – neu einrichten" : "");
+}
+
+async function refreshAutostart() {
+  renderAutostart(await api("/api/setup/autostart"));
+}
+
+async function installAutostart() {
+  const before = await api("/api/setup/autostart");
+  const res = await api("/api/setup/autostart", { method: "POST" });
+  renderAutostart(before, "Wird eingerichtet … die App startet dabei kurz neu.");
+  // Warten, bis der Server als Dienst neu gestartet ist (andere Startzeit); beim ersten Mal kann das dauern (Pakete)
+  for (let i = 0; i < 180; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const now = await api("/api/setup/autostart").catch(() => null);
+    if (now && now.started !== before.started && now.active) {
+      renderAutostart(now, "✓ Eingerichtet – die App startet ab jetzt automatisch im Hintergrund.");
+      refreshStatus();
+      return;
+    }
+  }
+  renderAutostart(before, `Hat nicht geklappt – Details im Log: ${res.log}`);
 }
 
 async function connectGarmin() {
@@ -1897,6 +1931,7 @@ async function main() {
   $("#btn-settings").onclick = openSettings;
   $("#btn-open-setup").onclick = () => { settingsDialog.close(); openSetup(); };
   $("#btn-setup-garmin").onclick = withBusy($("#btn-setup-garmin"), connectGarmin);
+  $("#btn-autostart").onclick = withBusy($("#btn-autostart"), installAutostart);
   $("#btn-setup-save").onclick = withBusy($("#btn-setup-save"), () => saveSetup(true));
   $("#btn-setup-skip").onclick = withBusy($("#btn-setup-skip"), () => saveSetup(false));
   $("#setup-garmin-login").onkeydown = (e) => {  // Enter in den Garmin-Feldern = verbinden (nicht Dialog schließen)

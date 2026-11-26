@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import analysis, compliance, config, conflicts, db, availability, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, updater, volume
+from . import analysis, autostart, compliance, config, conflicts, db, availability, feedback, nutrition, periodization, plan_import, plan_prompt, races, recommend, templates, updater, volume
 from .load import compute_series, daily_tss
 from .sync import TARGETS, status as sync_status, supports
 from .workouts import summarize
@@ -610,6 +610,21 @@ def setup_garmin(body: GarminLoginIn):
 @app.get("/api/status")
 def get_status():
     return sync_status()
+
+
+# --- Autostart (Hintergrunddienst) ------------------------------------------------
+
+@app.get("/api/setup/autostart")
+def autostart_status():
+    return autostart.status()
+
+
+@app.post("/api/setup/autostart")
+def autostart_install():
+    try:
+        return autostart.install()
+    except RuntimeError as e:
+        raise HTTPException(400, str(e)) from None
 
 
 # --- Updates von GitHub ----------------------------------------------------------

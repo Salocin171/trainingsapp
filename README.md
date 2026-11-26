@@ -22,7 +22,7 @@ Läuft lokal auf deinem Mac (Python-Server + Browser-Oberfläche). Nur für macO
 3. **Einrichten:** Im Browser öffnet sich der Dialog **„Willkommen“**: Garmin verbinden (optional, holt deine
    Schwellenwerte und das letzte Trainingsjahr), Gewicht und Schwellen prüfen, Saisonziel eintragen – fertig.
    Später erneut über **Einstellungen → Einrichtung / Garmin verbinden …**
-4. Optional **`autostart.command`** doppelklicken: Die App läuft dann immer im Hintergrund (siehe unten).
+4. Empfohlen: in der Einrichtung der App auf **„Autostart einrichten“** klicken (oder **`autostart.command`** doppelklicken): Die App läuft dann immer im Hintergrund, eingerichtet für genau diesen Ordner (siehe unten).
 
 **Updates:** Gibt es eine neue Version, erscheint oben in der App der Button **„⬆ Update“** (die App schaut alle 30 Minuten nach) – ein Klick holt sie, die Seite lädt danach neu. Alternativ **`Update.command`** doppelklicken; bei einer als ZIP geladenen App einmal nötig, danach geht es per Button.
 

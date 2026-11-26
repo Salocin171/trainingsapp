@@ -270,6 +270,22 @@
           gehen nur die belegten Uhrzeiten, keine Termintitel.</details>
       </fieldset>
 
+      <fieldset id="setup-autostart">
+        <legend>5 · Automatisch starten (empfohlen)</legend>
+        <p class="muted small">Richtet die Trainingsapp als Hintergrunddienst auf diesem Mac ein: Sie startet dann von selbst,
+          sobald du dich anmeldest – ohne Terminalfenster – und nach einem Absturz automatisch neu. Öffnen kannst du sie
+          danach jederzeit im Browser unter <a href="/">127.0.0.1:8765</a> (am besten als Lesezeichen) oder per Doppelklick
+          auf <code>Trainingsapp.command</code>.</p>
+        <p class="muted small">Eingerichtet wird für genau diesen App-Ordner: <code id="autostart-folder"></code>. Verschiebst
+          du den Ordner später, richtet <code>Trainingsapp.command</code> den Dienst beim nächsten Start selbst neu ein.
+          Beim Einrichten startet die App einmal kurz neu; läuft sie gerade im Terminal, schließt sich das Fenster.
+          Abschalten: im Terminal <code>./autostart.command off</code>.</p>
+        <div class="row">
+          <button type="button" id="btn-autostart">Autostart einrichten</button>
+          <span id="autostart-state" class="muted small"></span>
+        </div>
+      </fieldset>
+
       <div class="row-between">
         <button type="button" id="btn-setup-skip" class="ghost small">Später</button>
         <button type="button" id="btn-setup-save" class="primary">Los geht's</button>
