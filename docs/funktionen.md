@@ -30,6 +30,21 @@ mit echten Werten, noch Geplantes geschätzt, verpasste Workouts werden nur gez�
   **harte Einheiten** (mindestens 10 min über der Hart-Grenze), **Form am Ende der Woche** inklusive der geplanten
   Workouts.
 
+## Abschnitte einer Einheit (Klick auf eine Aktivität)
+
+Zwischenzeiten, Pace bzw. Leistung und Puls je Abschnitt, dazu je Intervall-Gruppe eine Kurzfassung
+(„5 × 4:00 · Ø 1,02 km · Ø 3:55/km · Ø HF 183 · 5/5 im Ziel“) und die Gesamtwerte ([`app/laps.py`](../app/laps.py)).
+Laufen: Pace/km, Puls, Kadenz · Rad: Watt, NP, Puls, Kadenz · Schwimmen: Pace/100 m, SWOLF, Züge, Lage.
+
+- **Workout lief auf der Uhr**: Abschnitte = Workout-Schritte (Auto-Runden innerhalb eines Schritts werden
+  zusammengefasst), jeder mit Ziel aus dem Plan; Intervalle und konstante Abschnitte werden grün/orange bewertet
+  (2 % Spielraum, Pausen und Ein-/Auslaufen nicht). Ziele in Watt mit der FTP vom Tag der Einheit.
+- **Rolle ohne Workout auf der Uhr** (z. B. Zwift): der Verlauf wird nach den geplanten Schrittdauern ab Start
+  geschnitten.
+- **Sonst** die Runden, wie aufgezeichnet; beim Schwimmen werden gleich lange Serien gruppiert (z. B. 6 × 100 m).
+
+Runden und Verlauf holt die App beim ersten Öffnen von Garmin und speichert sie dauerhaft zwischen.
+
 ## Zirkel-Timer (Kraft/Stabi)
 
 Im Workout **„▶ Zirkel-Timer“** oder oben **„⏱ Timer“** ohne Workout. Belastung und Pause in Sekunden, Runden (max. 60,

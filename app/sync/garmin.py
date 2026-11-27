@@ -7,7 +7,8 @@ Nutzt die inoffizielle Bibliothek `garminconnect`. Einmalig anmelden im Einricht
 oder im Terminal mit  .venv/bin/python -m app.garmin_login
 Danach liegen Tokens in ~/.trainingsapp/garmin_tokens.
 """
-from datetime import date, timedelta
+from collections import Counter
+from datetime import date, datetime, timedelta
 
 import re
 
@@ -319,6 +320,77 @@ def import_activities(settings: dict, days: int = 120) -> list[dict]:
             "metrics": activity_metrics(a, sport),
         })
     return out
+
+
+# --- Runden und Verlauf einer Aktivität (für die Abschnitte im Aktivitätsdialog) -------------------------
+
+LAP_KINDS = {"WARMUP": "warmup", "ACTIVE": "interval", "INTERVAL": "interval", "RECOVERY": "recovery",
+             "REST": "rest", "COOLDOWN": "cooldown"}
+SWIM_STROKES = {"FREESTYLE": "Kraul", "BREASTSTROKE": "Brust", "BACKSTROKE": "Rücken", "BUTTERFLY": "Delfin",
+                "IM": "Lagen", "MIXED": "Lagen", "DRILL": "Technik"}
+
+
+def _lap_stroke(lap: dict) -> str | None:
+    strokes = Counter(x.get("swimStroke") for x in lap.get("lengthDTOs") or [] if x.get("swimStroke"))
+    return SWIM_STROKES.get(strokes.most_common(1)[0][0]) if strokes else None
+
+
+def parse_laps(raw: dict, sport: str) -> list[dict]:
+    """Runden aus get_activity_splits → [{start, duration, distance, speed, hr, power, kind, step …}].
+
+    start = Sekunden seit Beginn, speed in m/s, kind aus dem Workout auf der Uhr (warmup/interval/recovery/rest/cooldown),
+    step = Index des Workout-Schritts (FIT-Reihenfolge, siehe laps.fit_steps). Beim Schwimmen sind Runden ohne Strecke
+    Pausen am Beckenrand."""
+    laps = raw.get("lapDTOs") or []
+    times = [datetime.fromisoformat(lap["startTimeGMT"]) if lap.get("startTimeGMT") else None for lap in laps]
+    first = next((t for t in times if t), None)
+    out = []
+    for lap, t in zip(laps, times):
+        distance = float(lap.get("distance") or 0)
+        item = {
+            "start": round((t - first).total_seconds()) if t and first else None,
+            "duration": round(float(lap.get("duration") or 0), 1), "distance": round(distance, 1),
+            "speed": lap.get("averageSpeed") if distance else None, "gap": lap.get("avgGradeAdjustedSpeed"),
+            "hr": lap.get("averageHR"), "max_hr": lap.get("maxHR"),
+            "power": lap.get("averagePower"), "np": lap.get("normalizedPower"),
+            "cadence": lap.get("averageRunCadence") or lap.get("averageBikeCadence") or lap.get("averageSwimCadence"),
+            "elevation_gain": lap.get("elevationGain"),
+            "kind": LAP_KINDS.get(lap.get("intensityType") or ""), "step": lap.get("wktStepIndex"),
+            "swolf": lap.get("averageSWOLF") or None, "strokes": lap.get("totalNumberOfStrokes") or None,
+            "stroke": _lap_stroke(lap) if sport == "swim" else None,
+        }
+        if sport == "swim" and not distance:
+            item["kind"] = "rest"
+        out.append({k: v for k, v in item.items() if v is not None})
+    return out
+
+
+def parse_stream(raw: dict) -> dict | None:
+    """Verlauf aus get_activity_details → {"t": [s], "hr": [...], "power": [...], "cadence": [...], "distance": [m]}.
+    t = Timer-Zeit in Sekunden (ohne Pausen), passend zu den Schrittdauern eines Workouts."""
+    index = {m["key"]: m["metricsIndex"] for m in raw.get("metricDescriptors") or []}
+    rows = [r["metrics"] for r in raw.get("activityDetailMetrics") or []]
+    if not rows or "sumDuration" not in index and "directTimestamp" not in index:
+        return None
+    t0 = rows[0][index["directTimestamp"]] if "directTimestamp" in index else 0
+    time = [r[index["sumDuration"]] if "sumDuration" in index else (r[index["directTimestamp"]] - t0) / 1000 for r in rows]
+    cadence_key = next((k for k in ("directBikeCadence", "directRunCadence", "directDoubleCadence") if k in index), None)
+    stream = {"t": [round(x or 0, 1) for x in time]}
+    for name, key in (("hr", "directHeartRate"), ("power", "directPower"), ("cadence", cadence_key),
+                      ("distance", "sumDistance")):
+        if key in index:
+            values = [r[index[key]] for r in rows]
+            if any(values):
+                stream[name] = [None if v is None else round(v, 1) for v in values]
+    return stream
+
+
+def import_laps(activity_id: str, sport: str) -> list[dict]:
+    return parse_laps(client().get_activity_splits(activity_id), sport)
+
+
+def import_stream(activity_id: str) -> dict | None:
+    return parse_stream(client().get_activity_details(activity_id, maxchart=2000))
 
 
 def parse_profile(ftp_raw, lactate_raw: dict, zones_raw: list) -> dict:

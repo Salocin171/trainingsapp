@@ -1,5 +1,6 @@
 // Feedback zu importierten Aktivitäten: Kennzahlen, Pulszonen, RPE, Befinden, Zuordnung zum Plan.
 import { $, api, dataChanged, toast, withBusy } from "./core.js";
+import { showActivityLaps } from "./activity-laps.js";
 import { openDetail } from "./detail.js";
 import { escapeHtml, fmtMin } from "./format.js";
 import { FEEL_LABEL, RPE_LABEL, SPORT_LABEL } from "./labels.js";
@@ -47,6 +48,8 @@ export function openFeedback(a, plan, dayWorkouts = []) {
   fform.feel.value = fb.feel ?? "";
   fform.note.value = fb.note || "";
   feedbackDialog.showModal();
+  if (["swim", "ride", "run"].includes(a.sport)) showActivityLaps($("#feedback-laps"), a.id);
+  else $("#feedback-laps").innerHTML = "";
 }
 
 async function saveFeedback() {

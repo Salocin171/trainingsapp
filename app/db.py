@@ -245,6 +245,13 @@ def list_activities(start: str, end: str) -> list[dict]:
             for r in rows]
 
 
+def get_activity(activity_id: str) -> dict | None:
+    with connect() as c:
+        r = c.execute("SELECT a.*, f.data AS feedback FROM activities a LEFT JOIN feedback f ON f.activity_id = a.id "
+                      "WHERE a.id = ?", (activity_id,)).fetchone()
+    return {**dict(r), "metrics": json.loads(r["metrics"] or "{}"), "feedback": json.loads(r["feedback"] or "{}")} if r else None
+
+
 def get_feedback(activity_id: str) -> dict:
     with connect() as c:
         row = c.execute("SELECT data FROM feedback WHERE activity_id = ?", (activity_id,)).fetchone()

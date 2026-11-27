@@ -56,6 +56,7 @@ Einmal übertragene Workouts werden bei jeder Änderung aktualisiert und beim L�
   Hitzetraining, Regeln für harte Einheiten, B-/C-Wettkämpfe mit Mini-Taper und Erholung.
 - **Plan vs. Ist**: importierte Aktivitäten werden den Workouts zugeordnet (Compliance-Farben), RPE und Befinden fließen
   in die Vorschläge ein.
+- **Abschnitte** jeder Einheit: Zwischenzeiten, Pace/Watt und Puls je Intervall, verglichen mit dem Ziel aus dem Plan.
 - **Ernährung** vor, während und nach jeder Einheit; **Analyse** mit Garmin-Kennzahlen, Leistungskurve, Effizienz,
   Pulszonen und Renntag-Planung.
 - **Plan-Import** als JSON, auch von einer beliebigen KI („KI-Auftrag kopieren“).

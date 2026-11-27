@@ -10,8 +10,8 @@ Services kennen kein HTTP. Erwartbare Fehler werfen sie als ServiceError (→ 40
 """
 from datetime import date, datetime, timedelta
 
-from . import (analysis, availability, compliance, conflicts, db, feedback, nutrition, periodization, plan_import,
-               plan_prompt, recommend, volume)
+from . import (analysis, availability, compliance, conflicts, db, feedback, laps, nutrition, periodization,
+               plan_import, plan_prompt, recommend, volume)
 from .load import compute_series, daily_tss
 from .sync import TARGETS, supports
 from .sync import status as sync_status
@@ -126,6 +126,55 @@ def save_activity_feedback(activity_id: str, values: dict) -> None:
     """RPE / Befinden / Notiz speichern; eine Zuordnung zum Plan (plan_link) bleibt erhalten."""
     link = {k: v for k, v in db.get_feedback(activity_id).items() if k == "plan_link"}
     db.save_feedback(activity_id, link | {k: v for k, v in values.items() if v not in (None, "")})
+
+
+def _planned_for(activity: dict, settings: dict) -> dict | None:
+    """Geplantes Workout, dem die Aktivität zugeordnet ist (automatisch oder von Hand), sonst None."""
+    day = activity["date"]
+    workouts = db.list_workouts(day, day)
+    _, _, links = compliance.evaluate(workouts, db.list_activities(day, day), date.today(), settings)
+    link = links.get(activity["id"])
+    return next((w for w in workouts if link and w["id"] == link["workout_id"]), None)
+
+
+def activity_laps(activity_id: str) -> dict:
+    """Abschnitte (Zwischenzeiten, Puls, Pace/Leistung je Intervall) einer Aktivität, siehe laps.py.
+
+    Runden und Verlauf kommen beim ersten Öffnen von Garmin und bleiben im Zwischenspeicher – eine erledigte
+    Aktivität ändert sich nicht mehr."""
+    activity = db.get_activity(activity_id)
+    if not activity:
+        raise LookupError("Aktivität nicht gefunden")
+    source, _, raw_id = activity_id.partition(":")
+    if source != "garmin":
+        return {"source": "none", "message": "Abschnitte gibt es nur für Aktivitäten von Garmin."}
+    settings = db.get_settings()
+    key = f"laps:{activity_id}"
+    cached = db.get_cache(key)
+    data = cached[1] if cached else {}
+    garmin = TARGETS["garmin"]
+    if "laps" not in data:
+        if not garmin.is_connected():
+            return {"source": "none", "message": "Garmin ist nicht verbunden – Abschnitte lassen sich nicht laden."}
+        try:
+            data["laps"] = garmin.import_laps(raw_id, activity["sport"])
+        except Exception as e:  # noqa: BLE001
+            raise ExternalError(f"Runden von Garmin nicht abrufbar: {e}") from e
+        db.set_cache(key, datetime.now().isoformat(timespec="minutes"), data)
+    workout = _planned_for(activity, settings)
+    if workout and "stream" not in data and activity["sport"] in laps.PLAN_CUT_SPORTS and garmin.is_connected():
+        try:  # nur nötig, wenn nach Plan geschnitten wird (Rolle ohne Workout auf der Uhr)
+            data["stream"] = garmin.import_stream(raw_id)
+            db.set_cache(key, datetime.now().isoformat(timespec="minutes"), data)
+        except Exception:  # noqa: BLE001 – dann eben nur die Runden
+            pass
+    # Ziele mit der FTP vom Tag der Einheit (Garmin-Verlauf), nicht der heutigen
+    metrics = db.get_cache("garmin_metrics")
+    history = [{"date": e["date"], "watts": e["value"]} for e in ((metrics or (None, {}))[1] or {}).get("ftp_series") or []]
+    if history:
+        settings = {**settings, "ftp": analysis.ftp_on(activity["date"], history + [
+            {"date": date.today().isoformat(), "watts": settings["ftp"]}])}
+    return laps.build(activity, data["laps"], data.get("stream"), workout, settings)
 
 
 def link_activity(activity_id: str, workout_id: int | None) -> None:

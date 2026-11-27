@@ -67,6 +67,15 @@ def link_activity(activity_id: str, body: PlanLinkIn):
     return {"ok": True}
 
 
+@router.get("/activities/{activity_id}/laps")
+def activity_laps(activity_id: str):
+    """Abschnitte einer Aktivität: Zwischenzeiten, Puls und Pace/Leistung je Intervall, mit Ziel aus dem Plan."""
+    try:
+        return services.activity_laps(activity_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e)) from None
+
+
 @router.get("/templates")
 def list_templates():
     return [{"key": k, "name": t.name, "min": t.min, "max": t.max, "hard": t.hard, "sports": t.sports}

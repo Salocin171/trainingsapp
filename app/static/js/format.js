@@ -22,8 +22,9 @@ export const fmtMin = (sec) => {
 };
 
 // Uhr: „1:02:03“ bzw. „4:05“
-export const fmtTime = (sec) => {
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.round(sec % 60);
+export const fmtTime = (seconds) => {
+  const sec = Math.round(seconds);  // erst runden, sonst entsteht z. B. "3:60"
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 };
 

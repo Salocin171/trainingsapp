@@ -89,7 +89,7 @@ def _start(a: dict) -> datetime | None:
         return None
 
 
-def _ftp_on(day: str, ftp) -> float:
+def ftp_on(day: str, ftp) -> float:
     """FTP am Tag der Einheit. ftp: Zahl oder Liste [{"date": "2026-03-01", "watts": 360}, ...]."""
     if not isinstance(ftp, (list, tuple)):
         return ftp or 0
@@ -208,7 +208,7 @@ def ef_series(activities: list[dict], today: date, ftp=0, threshold_pace: float 
     ftp: aktuelle FTP oder FTP-Verlauf (Liste {date, watts}) – dann zählt die FTP am Tag der Einheit.
     threshold_pace: Schwellentempo Laufen in s/km – skaliert wie die FTP die Grenzen der Puls-Steigung.
     """
-    scale = {"ride": _ftp_on(today.isoformat(), ftp), "run": 60000 / threshold_pace if threshold_pace else 0}
+    scale = {"ride": ftp_on(today.isoformat(), ftp), "run": 60000 / threshold_pace if threshold_pace else 0}
     ride_ends = []
     for a in activities:
         start = _start(a)
@@ -227,7 +227,7 @@ def ef_series(activities: list[dict], today: date, ftp=0, threshold_pace: float 
             if not ef or (a.get("duration") or 0) < EF_DURATION[sport][0]:
                 continue
             p = {"date": a["date"], "ef": round(ef, 3), "name": a["name"]}
-            reason = _not_comparable(a, _ftp_on(a["date"], ftp), after_ride(a) if sport == "run" else False)
+            reason = _not_comparable(a, ftp_on(a["date"], ftp), after_ride(a) if sport == "run" else False)
             if reason:
                 excluded.append({**p, "reason": reason})
             else:
@@ -251,7 +251,7 @@ def ef_series(activities: list[dict], today: date, ftp=0, threshold_pace: float 
                       "ref_hr": ref_hr, "slope": round(slope, 3),
                       "unit": "W/bpm" if sport == "ride" else "m/min/bpm",
                       "at_ref_unit": "W" if sport == "ride" else "m/min"}
-    current_ftp = _ftp_on(today.isoformat(), ftp)
+    current_ftp = ftp_on(today.isoformat(), ftp)
     out["ride"]["np_range"] = [round(current_ftp * f) for f in EF_IF_RANGE] if current_ftp else None
     return out
 
