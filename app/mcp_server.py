@@ -364,6 +364,13 @@ def set_activity_feedback(activity_id: str, rpe: float | None = None, feel: int 
     return _api("PUT", f"/api/activities/{quote(activity_id, safe='')}/feedback", json={"rpe": rpe, "feel": feel, "note": note})
 
 
+@server.tool(annotations=DELETE)
+def delete_activity(activity_id: str) -> dict:
+    """Importierte Aktivität (id aus get_calendar, z. B. 'garmin:123') aus der App löschen, etwa wenn dieselbe Einheit
+    doppelt hochgeladen wurde (Zwift und Garmin-Uhr). Bleibt bei Garmin bestehen, wird aber nicht erneut importiert."""
+    return _api("DELETE", f"/api/activities/{quote(activity_id, safe='')}")
+
+
 SETTABLE = {"ftp", "lthr_run", "lthr_ride", "max_hr", "threshold_pace", "css", "weight", "sweat_rate", "goal_name", "goal_date",
             "race_type", "week_hours", "recovery_every", "cycle_start", "taper_weeks", "target_ctl", "week_pattern",
             "auto_sync", "garmin_profile", "mac_calendar", "availability", "calendar_ics", "own_spacing_rules"}

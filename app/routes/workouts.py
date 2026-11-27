@@ -67,6 +67,14 @@ def link_activity(activity_id: str, body: PlanLinkIn):
     return {"ok": True}
 
 
+@router.delete("/activities/{activity_id}")
+def delete_activity(activity_id: str):
+    """Importierte Aktivität aus der App löschen (z. B. doppelt hochgeladen); spätere Importe überspringen sie."""
+    if not db.delete_activity(activity_id):
+        raise HTTPException(404, "Aktivität nicht gefunden")
+    return {"ok": True}
+
+
 @router.get("/activities/{activity_id}/laps")
 def activity_laps(activity_id: str):
     """Abschnitte einer Aktivität: Zwischenzeiten, Puls und Pace/Leistung je Intervall, mit Ziel aus dem Plan."""

@@ -67,7 +67,17 @@ async function saveFeedback() {
   dataChanged();
 }
 
+async function deleteActivity() {
+  if (!confirm(`„${activity.name}" aus der App löschen?\n\nGedacht für doppelt hochgeladene Einheiten. `
+    + "Bei Garmin bleibt sie bestehen, wird aber nicht erneut importiert.")) return;
+  await api(`/api/activities/${encodeURIComponent(activity.id)}`, { method: "DELETE" });
+  feedbackDialog.close();
+  toast("Aktivität gelöscht");
+  dataChanged();
+}
+
 export function bindFeedback() {
   fillFeedbackOptions(document);
   $("#btn-save-feedback").onclick = withBusy($("#btn-save-feedback"), saveFeedback);
+  $("#btn-delete-activity").onclick = withBusy($("#btn-delete-activity"), deleteActivity);
 }

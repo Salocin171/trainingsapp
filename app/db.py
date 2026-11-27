@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS activities (
     metrics TEXT                  -- JSON: avg_hr, np, speed, gap, if, hr_zones [s], mmp {Sekunden: Watt}
 );
 CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
+CREATE TABLE IF NOT EXISTS deleted_activities (
+    id TEXT PRIMARY KEY           -- von Hand gelöscht (z. B. doppelt hochgeladen) → beim Import überspringen
+);
 CREATE TABLE IF NOT EXISTS wellness (
     date TEXT PRIMARY KEY,
     data TEXT NOT NULL
@@ -223,7 +226,10 @@ def delete_workout(workout_id: int) -> None:
 # --- Aktivitäten & Wellness ------------------------------------------------
 
 def upsert_activities(items: list[dict]) -> int:
+    """Aktivitäten speichern; von Hand gelöschte (deleted_activities) kommen beim nächsten Import nicht wieder."""
     with connect() as c:
+        deleted = {r["id"] for r in c.execute("SELECT id FROM deleted_activities")}
+        items = [a for a in items if a["id"] not in deleted]
         for a in items:
             c.execute(
                 "REPLACE INTO activities(id, date, sport, name, duration, tss, distance, metrics) "
@@ -250,6 +256,18 @@ def get_activity(activity_id: str) -> dict | None:
         r = c.execute("SELECT a.*, f.data AS feedback FROM activities a LEFT JOIN feedback f ON f.activity_id = a.id "
                       "WHERE a.id = ?", (activity_id,)).fetchone()
     return {**dict(r), "metrics": json.loads(r["metrics"] or "{}"), "feedback": json.loads(r["feedback"] or "{}")} if r else None
+
+
+def delete_activity(activity_id: str) -> bool:
+    """Aktivität samt Feedback und Runden-Zwischenspeicher entfernen und merken, damit ein Import sie nicht
+    wieder anlegt. Nur in der App – bei Garmin & Co. bleibt sie bestehen."""
+    with connect() as c:
+        found = c.execute("DELETE FROM activities WHERE id = ?", (activity_id,)).rowcount > 0
+        if found:
+            c.execute("DELETE FROM feedback WHERE activity_id = ?", (activity_id,))
+            c.execute("DELETE FROM cache WHERE key = ?", (f"laps:{activity_id}",))
+            c.execute("INSERT OR IGNORE INTO deleted_activities(id) VALUES (?)", (activity_id,))
+    return found
 
 
 def get_feedback(activity_id: str) -> dict:

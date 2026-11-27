@@ -78,6 +78,9 @@ Danach: …“, gelten dessen Zahlen. Regeln in [`app/nutrition.py`](../app/nutr
 - **Feedback** ([`app/feedback.py`](../app/feedback.py)): Klick auf eine Aktivität → RPE (0–10), Befinden (1–5), Notiz.
   Lockere Einheit mit RPE ≥ 8 → 2 Tage nichts Hartes; Ø-RPE ≥ 7 bei Ermüdung → 2 Tage reduziert; harte Einheiten mit
   RPE ≤ 3 → Hinweis, die Schwellen zu testen.
+- **Doppelte Aktivität löschen**: Klick auf eine Aktivität → **Aktivität löschen**, z. B. wenn Zwift dieselbe Einheit
+  zusätzlich zur Uhr zu Garmin hochgeladen hat. Sie verschwindet aus Kalender, Belastung und Analysen und kommt beim
+  nächsten Import nicht wieder; bei Garmin selbst bleibt sie bestehen.
 - **Analyse** (Knopf oben):
   - *Kennzahlen* von Garmin: Trainingsstatus, VO2max, Endurance Score, Hitzeanpassung, Renn-Prognosen,
     FTP-/VO2max-Verlauf (6 h zwischengespeichert, „↻ Garmin“ lädt neu).

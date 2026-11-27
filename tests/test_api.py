@@ -161,3 +161,23 @@ def test_settings_model_matches_defaults():
     from app.schemas import SettingsIn
 
     assert set(SettingsIn.model_fields) == set(db.DEFAULT_SETTINGS)
+
+
+def test_deleted_activity_is_not_imported_again(tmp_path):
+    from fastapi.testclient import TestClient
+    from app import main
+
+    db.set_db_path(tmp_path / "delete.db")
+    today = date.today().isoformat()
+    double = [{"id": i, "date": today, "sport": "ride", "name": n, "duration": 3600, "tss": 60, "metrics": {}}
+              for i, n in (("garmin:1", "Zwift"), ("garmin:2", "Rolle"))]
+    db.upsert_activities(double)
+    db.save_feedback("garmin:2", {"rpe": 5})
+    db.set_cache("laps:garmin:2", "x", {"laps": []})
+    client = TestClient(main.app)
+    assert client.delete("/api/activities/garmin%3A2").json() == {"ok": True}
+    assert [a["id"] for a in db.list_activities(today, today)] == ["garmin:1"]
+    assert db.get_feedback("garmin:2") == {} and db.get_cache("laps:garmin:2") is None
+    assert db.upsert_activities(double) == 1  # nächster Import holt sie nicht zurück
+    assert [a["id"] for a in db.list_activities(today, today)] == ["garmin:1"]
+    assert client.delete("/api/activities/garmin%3A2").status_code == 404
