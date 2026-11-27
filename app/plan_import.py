@@ -164,7 +164,7 @@ def _steps(raw: list | str, where: str) -> list[dict]:
 # Zirkel-Timer: Feld → (min, max)
 CIRCUIT_LIMITS = {"work": (5, 600), "rest": (0, 600), "rounds": (1, 60), "round_rest": (0, 900)}
 EXERCISE_LIMITS = {"reps": (0, 200), "seconds": (5, 600)}
-# Kurzform hinter dem letzten „|“: „12 Wdh“ / „Wdh“ (ohne Zahl) bzw. „45 s“ – gleiche Regeln in app.js
+# Kurzform hinter dem letzten „|“: „12 Wdh“ / „Wdh“ (ohne Zahl) bzw. „45 s“ – gleiche Regeln in static/js/timer.js
 REPS_TEXT = re.compile(r"(\d*)\s*(wdh\.?|wiederholungen|reps?|x)", re.I)
 SECONDS_TEXT = re.compile(r"(\d+)\s*(s|sek\.?|sekunden)", re.I)
 

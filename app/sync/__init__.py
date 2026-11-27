@@ -17,11 +17,11 @@ def supports(target: str, sport: str) -> bool:
     return sport in SUPPORTED_SPORTS.get(target, {sport})
 
 
-def status() -> dict:
-    zwift_ok = True
+def status(settings: dict) -> dict:
+    """Welche Ziele eingerichtet sind. settings: aktuelle Einstellungen (Zwift-Ordner, Kalender)."""
     try:
-        zwift.workouts_dir()
+        zwift_ok = zwift.workouts_dir(settings.get("zwift_dir", "")).is_dir()
     except RuntimeError:
         zwift_ok = False
     return {"garmin": garmin.is_connected(), "intervals": intervals.is_connected(), "zwift": zwift_ok,
-            "calendar": maccal.is_connected()}
+            "calendar": maccal.is_connected(settings)}

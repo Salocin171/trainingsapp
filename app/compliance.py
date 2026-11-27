@@ -25,6 +25,7 @@ DEFAULT_DURATION_RANGE = (0.6, 1.6)
 HARD_PCT = 88            # ab hier zählt ein Schritt als hart (% von FTP / Schwelle / CSS)
 SHORT_REP_SECONDS = 120  # bei kürzeren Wiederholungen reagiert der Puls kaum, also großzügiger prüfen
 MUCH_HARDER_SHARE = 0.15  # lockerer Plan, aber so viel der Zeit in Pulszone 4–5: war ein anderes Training
+LTHR_KEY = {"run": "lthr_run", "ride": "lthr_ride"}  # Schwellenpuls je Sport (beim Schwimmen zu ungenau)
 # Allgemeine Wörter sagen nichts darüber, ob es dasselbe Training ist
 NAME_NOISE = {"laufen", "lauf", "radfahren", "rad", "schwimmen", "schwimmbad", "indoor", "locker", "min", "training"}
 
@@ -75,7 +76,8 @@ def _looks_hard(hard: list[dict], activity: dict, settings: dict) -> bool:
         if durations and mmp[str(max(durations))] >= 0.9 * target:
             return True
     short = longest < SHORT_REP_SECONDS
-    if short and settings.get("lthr") and (m.get("max_hr") or 0) >= 0.9 * settings["lthr"]:
+    lthr = settings.get(LTHR_KEY.get(activity.get("sport"), ""))
+    if short and lthr and (m.get("max_hr") or 0) >= 0.9 * lthr:
         return True
     if not zones:
         return False

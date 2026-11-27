@@ -1,7 +1,7 @@
 """SQLite-Speicher: geplante Workouts, importierte Aktivitäten, Wellness-Daten, Einstellungen."""
 import json
 import sqlite3
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 from . import config
@@ -29,12 +29,12 @@ DEFAULT_SETTINGS = {
     "target_ctl": 0,             # Ziel-Fitness (CTL) zu Beginn des Taperings, 0 = aus
     "weight": 0,                 # kg, für Verpflegungsplan (von Garmin, falls vorhanden)
     "sweat_rate": 0,             # l/h Schweißverlust (vorher/nachher wiegen), 0 = unbekannt → Trinken nach Durst
-    "plant_based": False,
+    "plant_based": False,        # vegetarisch/vegan → Ernährungshinweise mit pflanzlichem Protein
     "own_spacing_rules": False,  # True = Abstände harter Einheiten regelt der Nutzer selbst (z. B. eigene KI-Skills):
-                                 # kein 48-h-/eine-pro-Tag-Check in Vorschlägen und KI-Auftrag        # vegetarisch/vegan → Ernährungshinweise mit pflanzlichem Protein
-    "setup_done": False,
+                                 # kein 48-h-/eine-pro-Tag-Check in Vorschlägen und KI-Auftrag
+    "setup_done": False,         # Einrichtungsdialog abgeschlossen (neue Datenbanken starten mit False)
     "calendar_ics": [],          # private iCal-Links (Uni, Arbeit …) → belegte Zeiten im KI-Auftrag; bleibt lokal
-    "availability": "",          # eigene Angaben, wann trainiert werden kann (wird im KI-Auftrag mitgeschickt)         # Einrichtungsdialog abgeschlossen (neue Datenbanken starten mit False)
+    "availability": "",          # eigene Angaben, wann trainiert werden kann (wird im KI-Auftrag mitgeschickt)
     "race_plan": {},             # Eingaben der Renntag-Planung (Analyse → Renntag)
     # Wochenmuster: Einheiten je Wochentag (leere Liste = Ruhetag).
     # type: recovery | easy | hard | long; sport: swim | ride | run | strength | mobility
@@ -62,8 +62,9 @@ _OLD_DEFAULT_PATTERN = {
 def _migrate_settings(stored: dict) -> dict:
     """Ältere Einstellungen ins aktuelle Format bringen."""
     if "lthr" in stored:  # früher ein Wert für alle Sportarten
-        stored.setdefault("lthr_run", stored["lthr"])
-        stored.setdefault("lthr_ride", stored["lthr"])
+        lthr = stored.pop("lthr")
+        stored.setdefault("lthr_run", lthr)
+        stored.setdefault("lthr_ride", lthr)
     pattern = stored.get("week_pattern")
     if pattern == _OLD_DEFAULT_PATTERN:  # nie angepasst → neues Triathlon-Muster verwenden
         del stored["week_pattern"]
@@ -126,19 +127,32 @@ def set_db_path(path: Path) -> None:
     _db_path = path
 
 
-@contextmanager
-def connect():
+_initialized: Path | None = None  # Datei, deren Schema in diesem Prozess schon geprüft wurde
+
+
+def init_db() -> None:
+    """Tabellen anlegen und ältere Datenbanken anpassen – einmal pro Datei und Prozess, nicht bei jeder Abfrage."""
+    global _initialized
     _db_path.parent.mkdir(parents=True, exist_ok=True)
     new = not _db_path.exists()
+    with closing(sqlite3.connect(_db_path)) as conn, conn:
+        conn.row_factory = sqlite3.Row
+        conn.executescript(SCHEMA)
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(activities)")}
+        for column, kind in (("distance", "REAL"), ("metrics", "TEXT")):  # Datenbanken aus älteren Versionen
+            if column not in columns:
+                conn.execute(f"ALTER TABLE activities ADD COLUMN {column} {kind}")
+        # Neue Installation: Einrichtungsdialog zeigen. Ältere Datenbanken ohne Eintrag gelten als eingerichtet.
+        conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES ('setup_done', ?)", ("false" if new else "true",))
+    _initialized = _db_path
+
+
+@contextmanager
+def connect():
+    if _initialized != _db_path or not _db_path.exists():  # Datei gelöscht → neu anlegen statt leerer DB
+        init_db()
     conn = sqlite3.connect(_db_path)
     conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
-    if new:  # neue Installation: Einrichtungsdialog zeigen (alte Datenbanken erkennt man am fehlenden Eintrag)
-        conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES ('setup_done', 'false')")
-    columns = {r["name"] for r in conn.execute("PRAGMA table_info(activities)")}
-    for column, kind in (("distance", "REAL"), ("metrics", "TEXT")):  # Datenbanken aus älteren Versionen
-        if column not in columns:
-            conn.execute(f"ALTER TABLE activities ADD COLUMN {column} {kind}")
     try:
         yield conn
         conn.commit()
@@ -151,9 +165,6 @@ def connect():
 def get_settings() -> dict:
     with connect() as c:
         stored = {r["key"]: json.loads(r["value"]) for r in c.execute("SELECT key, value FROM settings")}
-        if "setup_done" not in stored:  # Datenbank von vor dem Einrichtungsdialog: gilt als eingerichtet
-            c.execute("REPLACE INTO settings(key, value) VALUES ('setup_done', 'true')")
-            stored["setup_done"] = True
     return {**DEFAULT_SETTINGS, **_migrate_settings(stored)}
 
 
@@ -179,10 +190,14 @@ def list_workouts(start: str, end: str) -> list[dict]:
     return [_row_to_workout(r) for r in rows]
 
 
+def _get_workout(c, workout_id: int) -> dict | None:
+    row = c.execute("SELECT * FROM workouts WHERE id = ?", (workout_id,)).fetchone()
+    return _row_to_workout(row) if row else None
+
+
 def get_workout(workout_id: int) -> dict | None:
     with connect() as c:
-        row = c.execute("SELECT * FROM workouts WHERE id = ?", (workout_id,)).fetchone()
-    return _row_to_workout(row) if row else None
+        return _get_workout(c, workout_id)
 
 
 def save_workout(workout: dict) -> dict:
@@ -197,7 +212,7 @@ def save_workout(workout: dict) -> dict:
         else:
             cur = c.execute("INSERT INTO workouts(date, data) VALUES (?, ?)", (workout["date"], json.dumps(data)))
             workout_id = cur.lastrowid
-    return get_workout(workout_id)
+        return _get_workout(c, workout_id)
 
 
 def delete_workout(workout_id: int) -> None:

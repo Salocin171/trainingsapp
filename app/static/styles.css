@@ -104,7 +104,7 @@ aside {
   padding: 14px 0 14px 14px; display: flex; flex-direction: column; gap: 12px;
 }
 body.no-aside aside { display: none; }
-#calendar { flex: 1; margin: 14px; min-width: 0; overflow: hidden; }  /* Höhe: calendarHeight() in app.js */
+#calendar { flex: 1; margin: 14px; min-width: 0; overflow: hidden; }  /* Höhe: calendarHeight() in js/calendar.js */
 
 .card {
   background: var(--panel); border: 1px solid var(--border);

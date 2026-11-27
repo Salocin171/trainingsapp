@@ -201,11 +201,9 @@ def _calendar(settings: dict) -> str:
     return name
 
 
-def is_connected() -> bool:
-    from .. import db  # spät importieren: db kennt die Sync-Ziele nicht
-
+def is_connected(settings: dict) -> bool:
     # während einer Sperrpause gilt der Kalender als nicht verbunden → Auto-Sync überspringt ihn statt zu hängen
-    return sys.platform == "darwin" and bool(db.get_settings().get("mac_calendar")) and time.monotonic() >= _blocked_until
+    return sys.platform == "darwin" and bool(settings.get("mac_calendar")) and time.monotonic() >= _blocked_until
 
 
 def push(workout: dict, settings: dict) -> dict:
