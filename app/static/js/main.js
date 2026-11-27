@@ -30,6 +30,7 @@ async function main() {
     api("/api/settings"), api("/api/templates"), api("/api/race-types"), api("/api/meta"),
   ]);
   Object.assign(meta, serverMeta);
+  document.body.classList.add(`platform-${meta.platform}`);  // blendet .mac-only / .win-only passend aus
   onDataChanged(() => refreshSidebar().catch((e) => toast(e.message)));
 
   initCalendar();

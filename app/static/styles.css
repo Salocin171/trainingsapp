@@ -65,6 +65,8 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }  /* auch bei Elementen mit display: flex/grid */
+/* Nur auf einer Plattform sichtbar (main.js setzt platform-mac / platform-windows am body) */
+body:not(.platform-mac) .mac-only, body:not(.platform-windows) .win-only { display: none !important; }
 body {
   margin: 0;
   font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;

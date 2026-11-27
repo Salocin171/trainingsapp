@@ -1,4 +1,5 @@
-"""Einmalige Garmin-Anmeldung im Terminal:  .venv/bin/python -m app.garmin_login
+r"""Einmalige Garmin-Anmeldung im Terminal:  .venv/bin/python -m app.garmin_login
+(Windows:  .venv\Scripts\python.exe -m app.garmin_login)
 
 Passwort wird nicht gespeichert, nur die Sitzungs-Tokens (~/.trainingsapp/garmin_tokens).
 """

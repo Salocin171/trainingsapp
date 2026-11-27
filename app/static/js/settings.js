@@ -14,8 +14,9 @@ export const icsLinks = (text) => text.split(/\s+/).map((l) => l.trim()).filter(
 export const raceTypeOptions = () =>
   Object.entries(meta.race_types).map(([k, l]) => `<option value="${k}">${escapeHtml(l)}</option>`).join("");
 
-// Kalender der Kalender-App zur Auswahl; beim ersten Mal fragt macOS nach der Berechtigung
+// Kalender der Kalender-App zur Auswahl; beim ersten Mal fragt macOS nach der Berechtigung (nur auf dem Mac)
 export async function fillCalendarSelect(select, current) {
+  if (!meta.mac_calendar) return;
   select.innerHTML = `<option value="${escapeHtml(current || "")}">${escapeHtml((current || "– keiner –").trim())}</option>`;
   try {
     const list = await api("/api/calendars");
@@ -142,6 +143,7 @@ async function saveSettings() {
 export async function refreshStatus() {
   const s = state.connected = await api("/api/status");
   const names = { garmin: "Garmin", intervals: "intervals.icu → Wahoo", zwift: "Zwift", calendar: "Kalender" };
+  if (!meta.mac_calendar) delete names.calendar;
   $("#status").innerHTML = Object.entries(names)
     .map(([k, l]) => `<span class="pill ${s[k] ? "on" : ""}" title="${l}: ${s[k] ? "verbunden" : "nicht eingerichtet – siehe README"}">${s[k] ? "●" : "○"}<span class="pill-label"> ${l}</span></span>`)
     .join("");

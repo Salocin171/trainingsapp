@@ -1,7 +1,7 @@
 """Zwift: Workouts als .zwo-Datei in den lokalen Zwift-Ordner schreiben.
 
 Zwift liest beim Start alle Dateien aus ~/Documents/Zwift/Workouts/<Zwift-ID>/
-und zeigt sie unter "Custom Workouts". Einen Kalender hat Zwift dafür nicht,
+(Windows: oft unter OneDrive umgeleitet) und zeigt sie unter "Custom Workouts". Einen Kalender hat Zwift dafür nicht,
 deshalb steht das Datum vorne im Dateinamen.
 """
 import re
@@ -10,16 +10,23 @@ from xml.sax.saxutils import quoteattr, escape
 
 from ..workouts import flatten
 
-ZWIFT_ROOT = Path.home() / "Documents" / "Zwift" / "Workouts"
+def zwift_roots(home: Path | None = None) -> list[Path]:
+    """Mögliche Zwift-Workout-Ordner: Dokumente lokal oder (Windows) per OneDrive umgeleitet, auch „Dokumente“."""
+    home = home or Path.home()
+    docs = [home / "Documents"]
+    for onedrive in sorted(home.glob("OneDrive*")):  # „OneDrive“ bzw. „OneDrive - Firma“
+        docs += [onedrive / "Documents", onedrive / "Dokumente"]
+    return [d / "Zwift" / "Workouts" for d in docs]
 
 
-def workouts_dir(configured: str = "") -> Path:
+def workouts_dir(configured: str = "", home: Path | None = None) -> Path:
     if configured:
         return Path(configured).expanduser()
-    if ZWIFT_ROOT.exists():
-        ids = sorted(p for p in ZWIFT_ROOT.iterdir() if p.is_dir() and p.name.isdigit())
-        if ids:
-            return ids[0]
+    for root in zwift_roots(home):
+        if root.is_dir():
+            ids = sorted(p for p in root.iterdir() if p.is_dir() and p.name.isdigit())
+            if ids:
+                return ids[0]
     raise RuntimeError("Zwift-Workout-Ordner nicht gefunden. Bitte in den Einstellungen setzen.")
 
 

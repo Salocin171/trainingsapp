@@ -1,13 +1,13 @@
 # Trainingsapp
 
-Trainingsplanung für Triathlon und Ironman, lokal auf dem Mac: Kalender mit mehreren Einheiten pro Tag,
+Trainingsplanung für Triathlon und Ironman, lokal auf deinem Computer: Kalender mit mehreren Einheiten pro Tag,
 Workout-Editor, Periodisierung bis zum Wettkampf, Vorschläge mit Begründung, Ernährung je Einheit, Auswertung – und
-Übertragung auf **Garmin**, **Wahoo** (über intervals.icu), **Zwift** und die **Kalender-App**. Claude kann die App per
-MCP bedienen.
+Übertragung auf **Garmin**, **Wahoo** (über intervals.icu), **Zwift** und die **Kalender-App** (Mac). Claude kann die
+App per MCP bedienen.
 
-Nur für macOS. Läuft als kleiner Python-Server, bedient wird sie im Browser.
+Für **macOS** und **Windows**. Läuft als kleiner Python-Server, bedient wird sie im Browser.
 
-## Installation (einmalig, ca. 10 Minuten)
+## Installation auf dem Mac (einmalig, ca. 10 Minuten)
 
 1. **Herunterladen:** *Terminal* öffnen (⌘ + Leertaste → „Terminal“), einfügen, Enter:
 
@@ -28,8 +28,31 @@ Nur für macOS. Läuft als kleiner Python-Server, bedient wird sie im Browser.
 **Updates:** Gibt es eine neue Version, erscheint oben **„⬆ Update“** – ein Klick genügt. Bei einer als ZIP geladenen
 App einmal `Update.command` doppelklicken.
 
-**Deine Daten** bleiben auf deinem Mac und sind nicht im Git: Trainingsdaten in `data/training.db` (zum Sichern
-kopieren), Garmin-Anmeldung in `~/.trainingsapp/`. Zweites Profil zum Ausprobieren:
+## Installation unter Windows (einmalig, ca. 10 Minuten)
+
+1. **Herunterladen:** auf [github.com/Salocin171/trainingsapp](https://github.com/Salocin171/trainingsapp) *Code →
+   Download ZIP*, entpacken (Rechtsklick → „Alle extrahieren“) und den Ordner dorthin legen, wo er bleiben soll, z. B.
+   `C:\Users\DEIN-NAME\Trainingsapp`. Mit [Git](https://git-scm.com/download/win) geht auch
+   `git clone https://github.com/Salocin171/trainingsapp.git %USERPROFILE%\Trainingsapp`.
+2. **Starten:** **`Trainingsapp.bat` doppelklicken.** Warnt Windows („Der Computer wurde durch Windows geschützt“):
+   *Weitere Informationen → Trotzdem ausführen*. Fehlt Python 3.12+, öffnet sich python.org: „Download Python“, im
+   Installer unten **„Add python.exe to PATH“** anhaken, „Install Now“, dann erneut doppelklicken. Beim ersten Mal wird
+   alles eingerichtet (ca. eine Minute), danach öffnet sich der Browser.
+3. **Einrichten:** wie auf dem Mac (Garmin, Schwellen, Saisonziel). Tipp: In Edge *⋯ → Apps → Diese Website als App
+   installieren* – dann ist die App ein eigenes Programm im Startmenü.
+4. **Autostart** (empfohlen): in der Einrichtung **„Autostart einrichten“** oder `Autostart.bat` doppelklicken. Die App
+   läuft dann ohne Fenster im Hintergrund und startet beim Anmelden. Log: `%LOCALAPPDATA%\Trainingsapp\trainingsapp.log`,
+   entfernen: `Autostart.bat off` (Eingabeaufforderung im App-Ordner).
+
+Updates wie auf dem Mac über **„⬆ Update“**; bei einer als ZIP geladenen App `Update.bat` doppelklicken (mit Git
+verbindet es den Ordner dabei einmalig mit GitHub, danach geht auch der Knopf). Die Kalender-App-Anbindung gibt es nur
+auf dem Mac; freie Zeiten per iCal-Link (Outlook, Google, iCloud) funktionieren auch unter Windows.
+
+## Deine Daten
+
+**Deine Daten** bleiben auf deinem Computer und sind nicht im Git: Trainingsdaten in `data/training.db` (zum Sichern
+kopieren), Garmin-Anmeldung in `~/.trainingsapp/` (Windows:
+`%USERPROFILE%\.trainingsapp\`). Zweites Profil zum Ausprobieren (Mac):
 `TRAININGSAPP_DATA_DIR=~/Trainingsapp-Test ./Trainingsapp.command`.
 
 > Die Garmin-Anbindung nutzt die inoffizielle Bibliothek [`garminconnect`](https://github.com/cyberjunky/python-garminconnect)
@@ -40,10 +63,10 @@ kopieren), Garmin-Anmeldung in `~/.trainingsapp/`. Zweites Profil zum Ausprobier
 
 | Ziel | Weg | Einrichtung |
 |---|---|---|
-| **Garmin** (Uhr / Edge) | Workout im Garmin-Connect-Kalender, das Gerät lädt es beim Sync | Einrichtungsdialog, oder `.venv/bin/python -m app.garmin_login` |
+| **Garmin** (Uhr / Edge) | Workout im Garmin-Connect-Kalender, das Gerät lädt es beim Sync | Einrichtungsdialog, oder `.venv/bin/python -m app.garmin_login` (Windows: `.venv\Scripts\python.exe -m app.garmin_login`) |
 | **Wahoo** | über [intervals.icu](https://intervals.icu) (kostenlos) | intervals.icu: Wahoo verbinden, „Upload planned workouts“ an. API-Key + Athleten-ID in `.env` (Vorlage `.env.example`) |
-| **Zwift** | `.zwo`-Datei, erscheint unter *Custom Workouts* | nichts – der Ordner wird gefunden (sonst in den Einstellungen setzen); macOS fragt evtl. nach Zugriff auf *Dokumente* → Erlauben |
-| **Kalender** (iCloud, Outlook …) | ganztägige Termine über die Kalender-App des Macs | *Einstellungen → Automatisch senden → Kalender* und Kalender wählen; macOS-Abfrage „… möchte Kalender steuern“ mit OK bestätigen |
+| **Zwift** | `.zwo`-Datei, erscheint unter *Custom Workouts* | nichts – der Ordner wird gefunden, auch unter OneDrive (sonst in den Einstellungen setzen); macOS fragt evtl. nach Zugriff auf *Dokumente* → Erlauben |
+| **Kalender** (iCloud, Outlook …) – nur Mac | ganztägige Termine über die Kalender-App des Macs | *Einstellungen → Automatisch senden → Kalender* und Kalender wählen; macOS-Abfrage „… möchte Kalender steuern“ mit OK bestätigen |
 
 Einmal übertragene Workouts werden bei jeder Änderung aktualisiert und beim Löschen auch dort entfernt.
 
@@ -74,6 +97,12 @@ Dienstag 75 min Sweet Spot und schick es an Garmin“). Er spricht mit der **lau
 claude mcp add trainingsapp --scope user -- "$PWD/.venv/bin/python" "$PWD/app/mcp_server.py"
 ```
 
+Windows (PowerShell im App-Ordner):
+
+```powershell
+claude mcp add trainingsapp --scope user -- "$PWD\.venv\Scripts\python.exe" "$PWD\app\mcp_server.py"
+```
+
 **Claude Desktop**: *Einstellungen → Entwickler → Konfiguration bearbeiten*, eintragen, neu starten:
 
 ```json
@@ -82,6 +111,9 @@ claude mcp add trainingsapp --scope user -- "$PWD/.venv/bin/python" "$PWD/app/mc
     "args": ["/Users/DEIN-BENUTZERNAME/Trainingsapp/app/mcp_server.py"] } } }
 ```
 
+Unter Windows mit `"C:\\Users\\DEIN-NAME\\Trainingsapp\\.venv\\Scripts\\python.exe"` und
+`"C:\\Users\\DEIN-NAME\\Trainingsapp\\app\\mcp_server.py"` (doppelte Backslashes im JSON).
+
 Tools: Status, Kalender, Workouts anlegen/ändern/löschen und senden, Vorschläge, Plan-Brief und Plan-Import, Analyse,
 Feedback, Einstellungen, Wettkämpfe und Konflikte, Aktivitäten importieren. Zum Block planen spart `get_plan_brief`
 Tokens (alle Vorgaben in einem Text); `import_plan` prüft zuerst und importiert dann per `preview_id`.
@@ -89,7 +121,8 @@ Tokens (alle Vorgaben in einem Text); `import_plan` prüft zuerst und importiert
 ## Entwicklung
 
 In VS Code **F5** → „Trainingsapp (Server mit Reload)“. Python-Änderungen laden den Server neu, Änderungen in
-`app/static/` brauchen nur einen Browser-Reload. Tests: `.venv/bin/python -m pytest`.
+`app/static/` brauchen nur einen Browser-Reload. Tests: `.venv/bin/python -m pytest` – GitHub Actions führt sie bei
+jedem Push auf macOS und Windows aus und startet die App dort einmal wie per Doppelklick.
 
 ```
 app/
@@ -98,6 +131,7 @@ app/
   schemas.py        Eingabemodelle (Pydantic) – prüfen jede Anfrage
   services.py       Abläufe: Datenbank + Fachlogik + Übertragung verbinden
   db.py             SQLite und Standard-Einstellungen
+  autostart.py      Hintergrunddienst einrichten (Mac: LaunchAgent, Windows: winservice.py)
   sync/             Garmin, intervals.icu, Zwift, Kalender-App – je push() / remove()
   …                 Fachlogik als reine Funktionen ohne Datenbank:
                     workouts, templates, load, periodization, recommend, compliance, feedback,
@@ -106,6 +140,7 @@ app/
   static/
     index.html, styles.css
     js/             Oberfläche als ES-Module, ein Modul je Bereich (main.js startet alles)
+scripts/            Mac: ensure_venv.sh · Windows: launcher.py (Start, Update, Autostart) und find_python.bat
 tests/              pytest, eine Datei je Bereich; jeder Test bekommt eine eigene leere Datenbank
 docs/               ausführliche Beschreibung
 ```

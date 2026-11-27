@@ -1,7 +1,7 @@
 """Einstellungen, Verbindungen, Import, Analyse, Einrichtung, Autostart und Updates."""
 from fastapi import APIRouter, HTTPException
 
-from .. import autostart, db, periodization, plan_import, services, updater
+from .. import autostart, config, db, periodization, plan_import, services, updater
 from ..schemas import GarminLoginIn, SettingsIn
 from ..sync import TARGETS
 from ..workouts import FLAT_TSS_PER_HOUR
@@ -17,6 +17,9 @@ def meta():
         "circuit_limits": plan_import.CIRCUIT_LIMITS,
         "exercise_limits": plan_import.EXERCISE_LIMITS,
         "race_types": periodization.RACE_TYPES,
+        # Kalender-App (AppleScript) gibt es nur auf dem Mac – die Oberfläche blendet sie sonst aus
+        "platform": "mac" if config.IS_MAC else "windows" if config.IS_WINDOWS else "other",
+        "mac_calendar": config.IS_MAC,
     }
 
 

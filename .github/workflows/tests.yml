@@ -1,0 +1,79 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+
+  # So wie ein Doppelklick auf Trainingsapp.bat bzw. Autostart.bat – nur ohne Browser
+  windows-start:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start im Fenster (legt .venv an, installiert Pakete)
+        shell: pwsh
+        run: |
+          Start-Process -FilePath python -ArgumentList "scripts\launcher.py", "start" -NoNewWindow `
+            -RedirectStandardOutput start-out.txt -RedirectStandardError start-err.txt
+          $ok = $false
+          for ($i = 0; $i -lt 150; $i++) {
+            try { if ((Invoke-WebRequest http://127.0.0.1:8765/api/meta -UseBasicParsing).StatusCode -eq 200) { $ok = $true; break } } catch {}
+            Start-Sleep 2
+          }
+          Get-Content start-out.txt, start-err.txt -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "Server antwortet nicht" }
+          $meta = Invoke-RestMethod http://127.0.0.1:8765/api/meta
+          if ($meta.platform -ne "windows" -or $meta.mac_calendar) { throw "Plattform falsch: $($meta.platform)" }
+          Invoke-RestMethod http://127.0.0.1:8765/api/status | ConvertTo-Json
+          Invoke-RestMethod "http://127.0.0.1:8765/api/calendar?start=2026-11-01&end=2026-12-01" | Out-Null
+          $a = Invoke-RestMethod http://127.0.0.1:8765/api/setup/autostart
+          if (-not $a.supported -or $a.installed) { throw "Autostart-Status falsch: $($a | ConvertTo-Json)" }
+      - name: Autostart einrichten – Dienst löst den Server im Fenster ab
+        shell: pwsh
+        run: |
+          cmd /c "python scripts\launcher.py autostart < NUL"
+          if ($LASTEXITCODE) { throw "autostart fehlgeschlagen ($LASTEXITCODE)" }
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try { $a = Invoke-RestMethod http://127.0.0.1:8765/api/setup/autostart; if ($a.active) { $ok = $true; break } } catch {}
+            Start-Sleep 2
+          }
+          $a | ConvertTo-Json
+          if (-not $ok) { throw "Dienst ist nicht aktiv geworden" }
+      - name: Trainingsapp.bat mit Autostart öffnet nur (kein zweiter Server)
+        shell: pwsh
+        run: |
+          cmd /c "Trainingsapp.bat < NUL"
+          if ($LASTEXITCODE) { throw "Trainingsapp.bat fehlgeschlagen ($LASTEXITCODE)" }
+          $a = Invoke-RestMethod http://127.0.0.1:8765/api/setup/autostart
+          if (-not $a.active) { throw "Dienst läuft nicht mehr" }
+      - name: Autostart abschalten
+        shell: pwsh
+        run: |
+          cmd /c "Autostart.bat off < NUL"
+          Start-Sleep 3
+          try { Invoke-WebRequest http://127.0.0.1:8765/api/meta -UseBasicParsing -TimeoutSec 3 | Out-Null; throw "Server läuft noch" }
+          catch { if ($_.Exception.Message -eq "Server läuft noch") { throw } }
+          if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\Trainingsapp.vbs") { throw "Autostart-Eintrag noch da" }
+      - name: Log des Dienstes
+        if: always()
+        shell: pwsh
+        run: Get-Content "$env:LOCALAPPDATA\Trainingsapp\trainingsapp.log" -ErrorAction SilentlyContinue

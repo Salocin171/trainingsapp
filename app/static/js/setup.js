@@ -52,6 +52,7 @@ async function refreshAutostart() {
 async function installAutostart() {
   const before = await api("/api/setup/autostart");
   const res = await api("/api/setup/autostart", { method: "POST" });
+  if (res.restart === false) return renderAutostart(await api("/api/setup/autostart"), "✓ Eingerichtet.");
   renderAutostart(before, "Wird eingerichtet … die App startet dabei kurz neu.");
   // Warten, bis der Server als Dienst neu gestartet ist (andere Startzeit); beim ersten Mal kann das dauern (Pakete)
   for (let i = 0; i < 180; i++) {

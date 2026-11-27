@@ -1,7 +1,8 @@
 """Updates aus der App heraus: prüfen, ob es auf GitHub neue Commits gibt, und sie auf Knopfdruck holen.
 
-Geht nur mit .git-Ordner (geklont oder einmal per Update.command mit GitHub verbunden). Neue Pakete werden vor dem
-Wechsel installiert; den neuen Code lädt der Server dank --reload selbst (Trainingsapp.command / autostart.command).
+Geht nur mit .git-Ordner (geklont oder einmal per Update.command / Update.bat mit GitHub verbunden). Neue Pakete werden
+vor dem Wechsel installiert; den neuen Code lädt der Server dank --reload selbst (Trainingsapp.command bzw. .bat,
+Autostart).
 """
 import subprocess
 import sys
@@ -26,7 +27,8 @@ class UpdateError(RuntimeError):
 
 
 def _git(*args: str, timeout: int = 30) -> str:
-    r = subprocess.run(["git", *args], cwd=config.ROOT, capture_output=True, text=True, timeout=timeout)
+    r = subprocess.run(["git", *args], cwd=config.ROOT, capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=timeout)
     if r.returncode:
         raise UpdateError((r.stderr or r.stdout).strip() or f"git {args[0]} fehlgeschlagen")
     return r.stdout.strip()
@@ -36,7 +38,7 @@ def _fetch_status() -> dict:
     # Ohne .git kein git aufrufen – auf Macs ohne Entwicklerwerkzeuge öffnet das sonst einen Installationsdialog
     if not (config.ROOT / ".git").exists():
         return {"supported": False, "available": False,
-                "hint": "Einmal Update.command doppelklicken – danach geht das Update hier per Knopfdruck."}
+                "hint": f"Einmal {config.UPDATE_SCRIPT} doppelklicken – danach geht das Update hier per Knopfdruck."}
     branch = _git("rev-parse", "--abbrev-ref", "HEAD")
     if branch != BRANCH:
         return {"supported": False, "available": False, "hint": f"Auf Zweig {branch!r} statt {BRANCH!r}."}
@@ -60,7 +62,7 @@ def status(force: bool = False) -> dict:
 
 
 def _python() -> str:
-    venv = config.ROOT / ".venv" / "bin" / "python"
+    venv = config.venv_python(config.ROOT)
     return str(venv) if venv.exists() else sys.executable
 
 
@@ -81,9 +83,9 @@ def apply() -> dict:
             # Pakete zuerst – sonst startet der Server mit neuem Code, aber ohne die neuen Pakete
             with tempfile.TemporaryDirectory() as tmp:
                 req = Path(tmp) / "requirements.txt"
-                req.write_text(_git("show", f"{REMOTE}:requirements.txt") + "\n")
+                req.write_text(_git("show", f"{REMOTE}:requirements.txt") + "\n", encoding="utf-8")
                 r = subprocess.run([_python(), "-m", "pip", "install", "-q", "-r", str(req)],
-                                   capture_output=True, text=True, timeout=600)
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
                 if r.returncode:
                     raise UpdateError("Neue Pakete konnten nicht installiert werden (Internet?): "
                                       + (r.stderr or r.stdout).strip()[-400:])

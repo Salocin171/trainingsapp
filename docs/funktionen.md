@@ -157,5 +157,22 @@ Kalender bei iCloud oder einem anderen Konto, synchronisiert macOS ihn selbst we
 Fehlt die Berechtigung („… möchte Kalender steuern“), pausiert die App das Eintragen kurz, statt bei jedem Speichern zu
 hängen. Nachträglich erlauben: *Systemeinstellungen → Datenschutz & Sicherheit → Automation*.
 
+Nur auf dem Mac – unter Windows blendet die App das Eintragen aus. Freie Zeiten per iCal-Link (iCloud, Outlook, Google)
+liest sie dort genauso.
+
+## Windows
+
+Die Starter `Trainingsapp.bat`, `Update.bat` und `Autostart.bat` rufen `scripts/launcher.py` auf (nur
+Standardbibliothek, läuft also schon vor der `.venv`). Er legt die Umgebung unter `.venv\Scripts\` an, installiert
+Pakete nur, wenn sich `requirements.txt` geändert hat, und startet den Server mit `--reload`.
+
+Der **Autostart** braucht keine Administratorrechte: `Trainingsapp.vbs` im Autostart-Ordner des Benutzers
+(`shell:startup`) startet beim Anmelden `launcher.py serve` ohne Fenster. Der Dienst schreibt ins Log
+`%LOCALAPPDATA%\Trainingsapp\trainingsapp.log` und startet den Server nach einem Absturz neu (höchstens fünfmal in
+zehn Minuten). Läuft die App gerade in einem Fenster, beendet der Dienst diesen Server und übernimmt. Welcher Prozess
+den Server betreibt, steht in `%LOCALAPPDATA%\Trainingsapp\server-<port>.json` – so beendet die App nie ein fremdes
+Programm. Code: `app/winservice.py`, Tests: `tests/test_windows.py`; GitHub Actions prüft Start, Übernahme durch den
+Dienst und Abschalten auf einem echten Windows.
+
 Warum Wahoo über intervals.icu? Die Wahoo-Cloud-API braucht einen freigeschalteten Entwickler-Account; intervals.icu
 ist offiziell angebunden und liefert zusätzlich Aktivitäten mit Trainingslast.

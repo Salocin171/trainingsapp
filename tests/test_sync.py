@@ -202,7 +202,14 @@ def test_calendar_pauses_after_missing_permission(monkeypatch):
 def test_status_uses_zwift_folder_from_settings(tmp_path, monkeypatch):
     from app import sync
 
-    monkeypatch.setattr(zwift, "ZWIFT_ROOT", tmp_path / "gibt-es-nicht")
+    monkeypatch.setattr(zwift, "zwift_roots", lambda home=None: [tmp_path / "gibt-es-nicht"])
     assert sync.status({**SETTINGS, "zwift_dir": str(tmp_path)})["zwift"] is True
     assert sync.status({**SETTINGS, "zwift_dir": str(tmp_path / "fehlt")})["zwift"] is False
     assert sync.status(SETTINGS)["zwift"] is False
+
+
+def test_zwift_folder_is_found_under_onedrive(tmp_path):
+    """Windows leitet „Dokumente“ oft nach OneDrive um – auch dort wird der Zwift-Ordner gefunden."""
+    ids = tmp_path / "OneDrive" / "Dokumente" / "Zwift" / "Workouts" / "123456"
+    ids.mkdir(parents=True)
+    assert zwift.workouts_dir(home=tmp_path) == ids

@@ -1,10 +1,12 @@
-"""MCP-Server für die Trainingsapp – damit Claude (Claude Code, Claude Desktop) die App bedienen kann.
+r"""MCP-Server für die Trainingsapp – damit Claude (Claude Code, Claude Desktop) die App bedienen kann.
 
 Dünne Schicht über die HTTP-API der laufenden App (http://127.0.0.1:<PORT>), keine eigene Logik.
-Die App muss laufen (Trainingsapp.command oder F5 in VS Code).
+Die App muss laufen (Trainingsapp.command bzw. Trainingsapp.bat, Autostart oder F5 in VS Code).
 
 Einmalig registrieren (für alle Claude-Code-Sitzungen), im Ordner der App ausführen:
     claude mcp add trainingsapp --scope user -- "$PWD/.venv/bin/python" "$PWD/app/mcp_server.py"
+Windows (PowerShell):
+    claude mcp add trainingsapp --scope user -- "$PWD\.venv\Scripts\python.exe" "$PWD\app\mcp_server.py"
 """
 import sys
 from datetime import date as Date
@@ -51,7 +53,7 @@ def _api(method: str, path: str, text: bool = False, **kwargs):
     try:
         r = httpx.request(method, BASE + path, timeout=120, **kwargs)
     except httpx.ConnectError:
-        raise AppNotRunning(f"Die Trainingsapp läuft nicht ({BASE}). Bitte Trainingsapp.command starten.") from None
+        raise AppNotRunning(f"Die Trainingsapp läuft nicht ({BASE}). Bitte {config.START_SCRIPT} starten.") from None
     if r.status_code >= 400:
         try:
             detail = r.json().get("detail", r.text)

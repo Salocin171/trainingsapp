@@ -149,7 +149,7 @@
         <label class="inline"><input type="checkbox" value="garmin"> Garmin</label>
         <label class="inline"><input type="checkbox" value="intervals"> Wahoo (via intervals.icu)</label>
         <label class="inline"><input type="checkbox" value="zwift"> Zwift</label>
-        <label class="inline"><input type="checkbox" value="calendar"> Kalender</label>
+        <label class="inline mac-only"><input type="checkbox" value="calendar"> Kalender</label>
         <span id="sync-state" class="muted"></span>
       </fieldset>
 
@@ -213,12 +213,12 @@
         <button value="cancel" class="ghost" aria-label="Schließen">✕</button>
       </div>
       <p class="muted">Einmal kurz einrichten – alles lässt sich später unter <b>Einstellungen</b> ändern.
-        Deine Daten bleiben auf diesem Mac (Ordner <code>data/</code>), nichts davon landet bei GitHub.</p>
+        Deine Daten bleiben auf diesem Computer (Ordner <code>data/</code>), nichts davon landet bei GitHub.</p>
 
       <fieldset>
         <legend>1 · Garmin verbinden (optional)</legend>
         <p class="muted small">Übernimmt FTP, Schwellen, Max-Puls und Gewicht und lädt deine Aktivitäten des letzten Jahres
-          (für Fitness/Form). Das Passwort wird nicht gespeichert, nur die Anmeldung auf diesem Mac.</p>
+          (für Fitness/Form). Das Passwort wird nicht gespeichert, nur die Anmeldung auf diesem Computer.</p>
         <div class="grid" id="setup-garmin-login">
           <label>E-Mail <input type="email" name="garmin_email" autocomplete="username"></label>
           <label>Passwort <input type="password" name="garmin_password" autocomplete="current-password"></label>
@@ -265,24 +265,26 @@
           placeholder="z. B. Mo–Fr erst ab 17 Uhr · Schwimmbad nur Di und Do 6:30–8 Uhr · Sa lange Radausfahrt mit Verein · So frei"></textarea></label>
         <label>Kalender mit Terminen (iCal-Links, einer pro Zeile) <textarea name="calendar_ics" rows="2"
           placeholder="webcal://p…-caldav.icloud.com/published/2/…"></textarea></label>
-        <label>Trainings eintragen in Kalender <select name="mac_calendar" class="mac-calendar"></select></label>
+        <label class="mac-only">Trainings eintragen in Kalender <select name="mac_calendar" class="mac-calendar"></select></label>
         <details class="small muted ics-help"><summary>Wo finde ich den iCal-Link?</summary>
           <b>iCloud</b>: Kalender-App → Rechtsklick auf den Kalender →
           Teilen → „Öffentlicher Kalender“ → Link kopieren. · <b>Outlook</b>: Einstellungen → Kalender → Freigegebene
-          Kalender → „Kalender veröffentlichen“ → ICS-Link. Der Link ist geheim – er bleibt nur auf diesem Mac; an die KI
+          Kalender → „Kalender veröffentlichen“ → ICS-Link. Der Link ist geheim – er bleibt nur auf diesem Computer; an die KI
           gehen nur die belegten Uhrzeiten, keine Termintitel.</details>
       </fieldset>
 
       <fieldset id="setup-autostart">
         <legend>5 · Automatisch starten (empfohlen)</legend>
-        <p class="muted small">Richtet die Trainingsapp als Hintergrunddienst auf diesem Mac ein: Sie startet dann von selbst,
-          sobald du dich anmeldest – ohne Terminalfenster – und nach einem Absturz automatisch neu. Öffnen kannst du sie
+        <p class="muted small">Richtet die Trainingsapp als Hintergrunddienst auf diesem Computer ein: Sie startet dann von
+          selbst, sobald du dich anmeldest – ohne Fenster – und nach einem Absturz automatisch neu. Öffnen kannst du sie
           danach jederzeit im Browser unter <a href="/">127.0.0.1:8765</a> (am besten als Lesezeichen) oder per Doppelklick
-          auf <code>Trainingsapp.command</code>.</p>
+          auf <code class="mac-only">Trainingsapp.command</code><code class="win-only">Trainingsapp.bat</code>.</p>
         <p class="muted small">Eingerichtet wird für genau diesen App-Ordner: <code id="autostart-folder"></code>. Verschiebst
-          du den Ordner später, richtet <code>Trainingsapp.command</code> den Dienst beim nächsten Start selbst neu ein.
-          Beim Einrichten startet die App einmal kurz neu; läuft sie gerade im Terminal, schließt sich das Fenster.
-          Abschalten: im Terminal <code>./autostart.command off</code>.</p>
+          du den Ordner später, richtet <code class="mac-only">Trainingsapp.command</code><code class="win-only">Trainingsapp.bat</code>
+          den Dienst beim nächsten Start selbst neu ein. Beim Einrichten startet die App einmal kurz neu; läuft sie gerade
+          in einem <span class="mac-only">Terminal</span><span class="win-only">Fenster</span>, schließt es sich.
+          Abschalten: <span class="mac-only">im Terminal <code>./autostart.command off</code></span><span class="win-only">im
+          App-Ordner in der Eingabeaufforderung <code>Autostart.bat off</code></span>.</p>
         <div class="row">
           <button type="button" id="btn-autostart">Autostart einrichten</button>
           <span id="autostart-state" class="muted small"></span>
@@ -533,10 +535,10 @@
         <label class="inline"><input type="checkbox" name="auto_sync" value="garmin"> Garmin</label>
         <label class="inline"><input type="checkbox" name="auto_sync" value="intervals"> intervals.icu / Wahoo</label>
         <label class="inline"><input type="checkbox" name="auto_sync" value="zwift"> Zwift (nur Rad/Lauf)</label>
-        <label class="inline"><input type="checkbox" name="auto_sync" value="calendar"> Kalender</label>
-        <label class="inline">in <select name="mac_calendar" class="mac-calendar"></select></label>
-        <button type="button" id="btn-bulk-calendar" class="small" title="Trägt fehlende Termine ein und korrigiert vorhandene">Geplante Workouts jetzt eintragen / aktualisieren</button>
-        <p class="muted small wide-note">Kalender = die Kalender-App dieses Macs. Liegt der gewählte Kalender bei iCloud oder
+        <label class="inline mac-only"><input type="checkbox" name="auto_sync" value="calendar"> Kalender</label>
+        <label class="inline mac-only">in <select name="mac_calendar" class="mac-calendar"></select></label>
+        <button type="button" id="btn-bulk-calendar" class="small mac-only" title="Trägt fehlende Termine ein und korrigiert vorhandene">Geplante Workouts jetzt eintragen / aktualisieren</button>
+        <p class="muted small wide-note mac-only">Kalender = die Kalender-App dieses Macs. Liegt der gewählte Kalender bei iCloud oder
           einem anderen Konto, landen die Trainings automatisch auch dort und auf dem iPhone.</p>
       </fieldset>
       <fieldset>
@@ -548,7 +550,7 @@
         <details class="small muted ics-help"><summary>Wo finde ich den iCal-Link?</summary>
           <b>iCloud</b>: Kalender-App → Rechtsklick auf den Kalender →
           Teilen → „Öffentlicher Kalender“ → Link kopieren. · <b>Outlook</b>: Einstellungen → Kalender → Freigegebene
-          Kalender → „Kalender veröffentlichen“ → ICS-Link. Der Link ist geheim – er bleibt nur auf diesem Mac; an die KI
+          Kalender → „Kalender veröffentlichen“ → ICS-Link. Der Link ist geheim – er bleibt nur auf diesem Computer; an die KI
           gehen nur die belegten Uhrzeiten, keine Termintitel.</details>
       </fieldset>
       <fieldset>

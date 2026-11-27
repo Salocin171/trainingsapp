@@ -1,7 +1,11 @@
-"""Autostart (Hintergrunddienst) aus der App heraus einrichten – führt autostart.command für genau diesen Ordner aus.
+"""Autostart (Hintergrunddienst) aus der App heraus einrichten – für genau diesen Ordner.
 
-Das Skript beendet dabei den laufenden Server und startet ihn als LaunchAgent neu. Deshalb läuft es als eigener
-Prozess in einer eigenen Sitzung: launchd beendet beim Stoppen des alten Dienstes dessen ganze Prozessgruppe.
+Mac: führt autostart.command aus. Das Skript beendet dabei den laufenden Server und startet ihn als LaunchAgent neu.
+Deshalb läuft es als eigener Prozess in einer eigenen Sitzung: launchd beendet beim Stoppen des alten Dienstes dessen
+ganze Prozessgruppe.
+
+Windows: Eintrag im Autostart-Ordner (winservice.py) schreiben und den Dienst starten; der Dienst löst einen Server,
+der noch im Fenster läuft (Trainingsapp.bat), selbst ab.
 """
 import os
 import plistlib
@@ -10,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import config
+from . import config, winservice
 from .updater import STARTED
 
 LABEL = "de.trainingsapp"
@@ -36,10 +40,10 @@ def _service_pid() -> int | None:
     return int(pid[1]) if pid else None
 
 
-def status() -> dict:
+def mac_status() -> dict:
     folder = _folder_of_service()
     return {
-        "supported": sys.platform == "darwin",
+        "supported": True, "platform": "mac",
         "installed": folder is not None,
         "this_folder": folder == config.ROOT.resolve(),
         # Läuft dieser Server als der Dienst? (mit --reload ist der Dienst der Elternprozess)
@@ -48,11 +52,42 @@ def status() -> dict:
     }
 
 
+def windows_status() -> dict:
+    folder = winservice.folder_of_service()
+    this_folder = winservice.same_folder(folder, config.ROOT)
+    return {
+        "supported": True, "platform": "windows",
+        "installed": folder is not None,
+        "this_folder": this_folder,
+        # Der Dienst (launcher.py serve) setzt die Umgebungsvariable für seinen Server
+        "active": this_folder and os.environ.get(winservice.SERVICE_ENV) == "1",
+        "folder": str(config.ROOT), "log": str(winservice.log_path()), "started": STARTED,
+    }
+
+
+def status() -> dict:
+    if config.IS_WINDOWS:
+        return windows_status()
+    if config.IS_MAC:
+        return mac_status()
+    return {"supported": False, "platform": sys.platform, "installed": False, "this_folder": False, "active": False,
+            "folder": str(config.ROOT), "log": "", "started": STARTED}
+
+
 def install() -> dict:
-    if sys.platform != "darwin":
-        raise RuntimeError("Autostart gibt es nur auf dem Mac.")
+    if config.IS_WINDOWS:
+        if not config.venv_python(config.ROOT, windows=True).exists():
+            raise RuntimeError("Python-Umgebung (.venv) fehlt – bitte einmal Trainingsapp.bat doppelklicken.")
+        already = windows_status()["active"]
+        winservice.install(config.ROOT)
+        if already:  # dieser Server ist schon der Dienst: Eintrag erneuert, kein Neustart nötig
+            return {"started": True, "restart": False, "log": str(winservice.log_path())}
+        winservice.start_service()
+        return {"started": True, "log": str(winservice.log_path())}
+    if not config.IS_MAC:
+        raise RuntimeError("Autostart gibt es nur auf dem Mac und unter Windows.")
     LOG.parent.mkdir(parents=True, exist_ok=True)
-    with LOG.open("w") as log:
+    with LOG.open("w", encoding="utf-8") as log:
         subprocess.Popen(["/bin/zsh", str(config.ROOT / "autostart.command"), "--from-app"], cwd=config.ROOT,
                          stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     return {"started": True, "log": str(LOG)}

@@ -1,0 +1,4 @@
+# Windows-Batchdateien brauchen CRLF, die Mac-Skripte LF – unabhängig davon, wo ausgecheckt wird
+*.bat     text eol=crlf
+*.command text eol=lf
+*.sh      text eol=lf

@@ -42,9 +42,9 @@ def test_autostart_status_knows_the_folder(tmp_path, monkeypatch):
     plist = tmp_path / "de.trainingsapp.plist"
     monkeypatch.setattr(autostart, "PLIST", plist)
     monkeypatch.setattr(autostart, "_service_pid", lambda: None)
-    assert autostart.status()["installed"] is False
+    assert autostart.mac_status()["installed"] is False
     plist.write_bytes(plistlib.dumps({"Label": "de.trainingsapp", "WorkingDirectory": str(tmp_path / "anderswo")}))
-    s = autostart.status()
+    s = autostart.mac_status()
     assert s["installed"] and not s["this_folder"] and not s["active"]
     plist.write_bytes(plistlib.dumps({"Label": "de.trainingsapp", "WorkingDirectory": str(config.ROOT)}))
-    assert autostart.status()["this_folder"]
+    assert autostart.mac_status()["this_folder"]
