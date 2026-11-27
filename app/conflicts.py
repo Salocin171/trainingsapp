@@ -14,16 +14,12 @@ Regeln (nur zukünftige, noch nicht erledigte Workouts):
 from datetime import date
 
 from . import races, templates
-from .workouts import intensity_factor, total_duration
+from .workouts import total_duration
 
 TAPER_MAX_MINUTES = {1: 40, 2: 60, 3: 60}   # Tage vor dem B-/A-Wettkampf → maximale Dauer
 TAPER_MAX_DEFAULT = 90
 REST_MAX_MINUTES = 40   # Vorschlag für Regenerationstage
 REST_TOLERANCE = 50     # erst ab dieser Dauer melden (kleine Abweichungen sind kein Problem)
-
-
-def _hard(w: dict) -> bool:
-    return templates.is_hard(w.get("template", "")) or intensity_factor(w) >= 0.85
 
 
 def _minutes(w: dict) -> int:
@@ -69,10 +65,10 @@ def check(workouts: list[dict], race_list_: list[dict], today: date) -> list[dic
             limit = TAPER_MAX_MINUTES.get(days, TAPER_MAX_DEFAULT)
             if sport == "strength" and prio != "C":
                 found = ("Taper", "Stabi/Kraft im Mini-Taper erzeugt Muskelkater.", "delete", None)
-            elif sport in templates.ENDURANCE_SPORTS and prio != "C" and days == 1 and (_hard(w) or minutes > limit):
+            elif sport in templates.ENDURANCE_SPORTS and prio != "C" and days == 1 and (templates.is_hard_workout(w) or minutes > limit):
                 found = ("Taper", "Am Vortag nur kurz aktivieren.", "update",
                          _replacement(w, "openers", sport, 30 if sport == "ride" else 20, r))
-            elif sport in templates.ENDURANCE_SPORTS and _hard(w) and (prio == "C" or days <= 3):
+            elif sport in templates.ENDURANCE_SPORTS and templates.is_hard_workout(w) and (prio == "C" or days <= 3):
                 found = ("Taper", f"Harte Einheit {days} Tag(e) vor dem Wettkampf.", "update",
                          _replacement(w, "endurance", sport, min(minutes, limit), r))
             elif sport in templates.ENDURANCE_SPORTS and prio != "C" and minutes > limit:
@@ -87,10 +83,10 @@ def check(workouts: list[dict], race_list_: list[dict], today: date) -> list[dic
             elif days <= e["rest"]:
                 if sport == "strength":
                     found = ("Regeneration", "Kein Stabi in den ersten Tagen nach dem Wettkampf.", "delete", None)
-                elif sport in templates.ENDURANCE_SPORTS and (_hard(w) or minutes > REST_TOLERANCE):
+                elif sport in templates.ENDURANCE_SPORTS and (templates.is_hard_workout(w) or minutes > REST_TOLERANCE):
                     found = ("Regeneration", f"Tag {days} nach dem Wettkampf: nur kurz und sehr locker.", "update",
                              _replacement(w, "recovery", sport, min(minutes, REST_MAX_MINUTES), r))
-            elif days <= e["recovery"] and sport in templates.ENDURANCE_SPORTS and _hard(w):
+            elif days <= e["recovery"] and sport in templates.ENDURANCE_SPORTS and templates.is_hard_workout(w):
                 found = ("Erholung", f"Intensität in der Erholung (Tag {days}/{e['recovery']}).", "update",
                          _replacement(w, "endurance", sport, round(minutes * 0.8), r))
 

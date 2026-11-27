@@ -16,7 +16,7 @@ FATIGUE_RPE = 7
 TOO_EASY_RPE = 3
 
 
-def _activity_intensity(a: dict) -> tuple[bool, bool]:
+def activity_intensity(a: dict) -> tuple[bool, bool]:
     """(locker?, hart?) aus IF oder Pulszonen der Aktivität."""
     m = a.get("metrics") or {}
     if m.get("if"):
@@ -35,7 +35,7 @@ def entries(workouts: list[dict], activities: list[dict]) -> list[dict]:
     for a in activities:
         fb = a.get("feedback") or {}
         if fb.get("rpe") is not None or fb.get("feel") is not None:
-            easy, hard = _activity_intensity(a)
+            easy, hard = activity_intensity(a)
             out.append({"date": a["date"], "sport": a["sport"], "rpe": fb.get("rpe"), "feel": fb.get("feel"),
                         "easy": easy, "hard": hard, "label": a["name"]})
     for w in workouts:

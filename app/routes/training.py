@@ -35,6 +35,15 @@ def weeks(before: int | None = None, after: int | None = None):
     return services.weeks(before, after)
 
 
+@router.get("/week-summary")
+def week_summary(start: str):
+    """Statistik einer Woche (Montag oder beliebiger Tag der Woche, JJJJ-MM-TT) für die Wochenansicht."""
+    try:
+        return services.week_summary(start[:10])
+    except ValueError:
+        raise HTTPException(400, "Datum im Format JJJJ-MM-TT erwartet") from None
+
+
 @router.get("/goals")
 def list_goals():
     return services.goals()

@@ -50,6 +50,7 @@ Einmal übertragene Workouts werden bei jeder Änderung aktualisiert und beim L�
 ## Was die App kann
 
 - **Kalender** mit Belastungsblöcken, Monats-, Block-, Wochen- und Listenansicht; Drag & Drop zum Verschieben.
+- **Wochenübersicht** unter der Wochenansicht: km und Stunden je Sport, Soll, Intensität, harte Einheiten, Form am Sonntag.
 - **Workout-Editor** mit Vorlagen, Wiederholungen und Zielen je Schritt (Watt, Pace, Puls); **Zirkel-Timer** für Stabi.
 - **Periodisierung und Vorschläge**: Blöcke rückwärts vom Wettkampf, Belastungs-/Entlastungswochen, Soll-Stunden,
   Hitzetraining, Regeln für harte Einheiten, B-/C-Wettkämpfe mit Mini-Taper und Erholung.

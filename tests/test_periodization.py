@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from app import periodization, recommend, templates, volume
 from app.load import compute_series
-from app.workouts import step, total_duration
+from app.workouts import repeat, step, total_duration
 
 from helpers import SETTINGS
 
@@ -144,3 +144,58 @@ def test_race_conflicts():
     assert found[7]["proposal"]["template"] == "endurance"
     assert "Marathon" in found[7]["proposal"]["description"]
     assert conflicts.check(plan, race, date(2027, 3, 15))[0]["workout_id"] == 6  # Vergangenes wird nicht geprüft
+
+
+def test_distance_estimate_from_name_or_pace():
+    from app.workouts import distance_from_name, estimate_distance
+
+    assert distance_from_name("Lauf locker 8–10 km + Steigerungen") == 9000
+    assert distance_from_name("Schwimmen 3,2 km") == 3200
+    assert distance_from_name("Schwimmen 2500 m Technik") == 2500
+    assert distance_from_name("Referenzrunde 9,5 km @ 5:30/km") == 9500
+    assert distance_from_name("Bahn 5×400 m") is None and distance_from_name("Kraft 25 min") is None
+    # 40 min bei 80 % des Schwellentempos 4:00/km = 5:00/km → 8 km
+    run = {"sport": "run", "name": "Locker", "steps": [step("steady", 40, 80)]}
+    assert estimate_distance(run, {**SETTINGS, "threshold_pace": 240}) == 8000
+    swim = {"sport": "swim", "name": "Technik", "steps": [step("steady", 20, 100), step("recovery", 1, 0)]}
+    assert estimate_distance(swim, {**SETTINGS, "css": 100}) == 1200       # Pause am Rand zählt nicht
+    assert estimate_distance({"sport": "ride", "name": "Rad lang", "steps": [step("steady", 60, 70)]}, SETTINGS) == 0
+
+
+def test_week_summary_combines_done_and_planned():
+    monday, today = date(2026, 11, 23), date(2026, 11, 25)
+    activities = [{"id": "a", "date": "2026-11-24", "sport": "run", "name": "Lauf", "duration": 3600, "tss": 50,
+                   "distance": 10000, "metrics": {"hr_zones": [600, 3000, 0, 0, 0]}}]
+    workouts = [
+        {"id": 1, "date": "2026-11-23", "sport": "swim", "name": "Verpasst 2 km", "status": "planned", "steps": [step("steady", 40, 90)]},
+        {"id": 2, "date": "2026-11-24", "sport": "run", "name": "Lauf 10 km", "status": "done", "steps": [step("steady", 60, 75)]},
+        {"id": 3, "date": "2026-11-26", "sport": "run", "name": "Lauf lang 18 km", "status": "planned", "steps": [step("steady", 100, 75)]},
+        {"id": 4, "date": "2026-11-27", "sport": "ride", "name": "Schwelle", "status": "planned", "template": "threshold",
+         "steps": [step("steady", 60, 95)]},
+    ]
+    s = volume.week_summary(SETTINGS, monday, activities, workouts, today, {"ctl": 80.4, "atl": 90.2})
+    run = s["sports"]["run"]
+    assert (run["sessions"], run["meters"], run["done_meters"], run["estimated"]) == (2, 28000, 10000, True)
+    assert run["longest"]["name"] == "Lauf lang 18 km"
+    assert s["totals"]["missed"] == 1 and "swim" not in s["sports"]     # verpasst: gezählt, nicht als Umfang
+    assert s["totals"]["rest_days"] == 3                                 # Mo verpasst, Mi/Sa/So frei
+    assert s["intensity"]["hard"] == 3600 and s["intensity"]["easy"] == 3600 + 6000
+    assert [h["name"] for h in s["hard_sessions"]] == ["Schwelle"]
+    assert s["load"] == {"ctl": 80, "atl": 90, "tsb": -10, "form": "Produktives Training"}
+    assert s["days"][1]["done"] and s["days"][1]["seconds"] == 3600
+
+
+def test_week_summary_hard_sessions_by_time_above_threshold():
+    """Hart = mindestens 10 min über der Hart-Grenze; Schwimmen erst ab CSS-Tempo."""
+    monday = date(2026, 11, 30)
+    plan = lambda i, sport, name, *steps: {"id": i, "date": "2026-12-01", "sport": sport, "name": name,  # noqa: E731
+                                           "status": "planned", "steps": list(steps)}
+    workouts = [
+        plan(1, "ride", "Sweet Spot 3x12", step("warmup", 10, 50, 70), repeat(3, step("interval", 12, 88, 93), step("recovery", 4, 55))),
+        plan(2, "swim", "Technik 4 km", step("steady", 70, 90)),
+        plan(3, "swim", "Schwelle 10x200", repeat(10, step("interval", 3, 100), step("recovery", 0.5, 0))),
+        plan(4, "run", "Locker mit Steigerungen", step("steady", 40, 75), repeat(6, step("interval", 0.33, 105), step("recovery", 1, 60))),
+    ]
+    s = volume.week_summary(SETTINGS, monday, [], workouts, date(2026, 11, 30))
+    assert [h["name"] for h in s["hard_sessions"]] == ["Sweet Spot 3x12", "Schwelle 10x200"]
+    assert s["intensity"]["moderate"] == 70 * 60   # Technik-Schwimmen bei 90 % CSS = mittel, nicht hart

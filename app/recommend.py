@@ -14,7 +14,7 @@ from datetime import date, timedelta
 
 from . import periodization, races as race_rules, templates
 from .load import form_label, step_load
-from .workouts import estimate_tss, intensity_factor
+from .workouts import estimate_tss
 
 WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 WEEKDAY_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -77,10 +77,6 @@ def _weight(slot: dict) -> float:
 def _activity_if(a: dict) -> float:
     hours = (a.get("duration") or 0) / 3600
     return (a["tss"] / (hours * 100)) ** 0.5 if hours and a.get("tss") else 0.0
-
-
-def _is_hard_workout(w: dict) -> bool:
-    return templates.is_hard(w.get("template", "")) or intensity_factor(w) >= 0.85
 
 
 def _downgrade(kind: str) -> str:
@@ -213,7 +209,7 @@ def plan_days(settings: dict, today: date, state: dict, workouts: list[dict], ac
     for a in activities:
         if _activity_if(a) >= 0.85:
             hard_dates.setdefault(a["sport"], set()).add(date.fromisoformat(a["date"]))
-    hard_planned = {(w["date"], w.get("sport")) for w in planned if _is_hard_workout(w)}
+    hard_planned = {(w["date"], w.get("sport")) for w in planned if templates.is_hard_workout(w)}
     for d, sport in hard_planned:
         hard_dates.setdefault(sport, set()).add(date.fromisoformat(d))
     rotation: dict[str, int] = {}

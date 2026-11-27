@@ -18,6 +18,7 @@ Ein Schritt:
 oder eine Wiederholung:
     {"kind": "repeat", "count": 5, "steps": [Schritt, ...]}
 """
+import re
 from collections.abc import Iterator
 
 STEP_KINDS = ("warmup", "interval", "recovery", "steady", "cooldown")
@@ -68,6 +69,39 @@ def estimate_tss(workout: dict) -> float:
 def intensity_factor(workout: dict) -> float:
     hours = total_duration(workout.get("steps", [])) / 3600
     return round((estimate_tss(workout) / (hours * 100)) ** 0.5, 2) if hours else 0.0
+
+
+# „8 km“, „8–10 km“, „9,5 km“, „3200 m“ im Namen – nicht „5×400 m“ (Teilstrecke einer Wiederholung)
+DISTANCE_IN_NAME = re.compile(r"(?<![\dx×.,])\s?(\d+(?:[.,]\d+)?)(?:\s*[–-]\s*(\d+(?:[.,]\d+)?))?\s*(km|m)\b", re.I)
+PACE_BASE = {"run": ("threshold_pace", 1000), "swim": ("css", 100)}  # Schwelle in s pro km bzw. 100 m
+
+
+def distance_from_name(name: str | None) -> float | None:
+    """Meter aus dem Namen, bei Spannen die Mitte („8–10 km“ → 9000)."""
+    m = DISTANCE_IN_NAME.search(name or "")
+    if not m:
+        return None
+    low = float(m[1].replace(",", "."))
+    high = float(m[2].replace(",", ".")) if m[2] else low
+    return (low + high) / 2 * (1000 if m[3].lower() == "km" else 1)
+
+
+def estimate_distance(workout: dict, settings: dict) -> float:
+    """Geplante Strecke in Metern (0 = unbekannt). Zuerst aus dem Namen, sonst aus den Schritten:
+    Tempo = Schwelle / Intensität. Puls- und Wattziele werden dabei wie Tempo-Prozente behandelt (grobe Schätzung)."""
+    from_name = distance_from_name(workout.get("name"))
+    if from_name:
+        return from_name
+    key, unit = PACE_BASE.get(workout.get("sport"), (None, 0))
+    threshold = float(settings.get(key) or 0) if key else 0
+    if not threshold:
+        return 0.0
+    meters = 0.0
+    for s in flatten(workout.get("steps", [])):
+        pct = (float(s.get("low", 0)) + float(s.get("high", s.get("low", 0)))) / 2
+        if pct > 0:  # 0 % = Pause am Beckenrand
+            meters += s.get("duration", 0) / (threshold / (pct / 100)) * unit
+    return round(meters)
 
 
 def summarize(workout: dict) -> dict:

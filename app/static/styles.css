@@ -104,7 +104,13 @@ aside {
   padding: 14px 0 14px 14px; display: flex; flex-direction: column; gap: 12px;
 }
 body.no-aside aside { display: none; }
-#calendar { flex: 1; margin: 14px; min-width: 0; overflow: hidden; }  /* Höhe: calendarHeight() in js/calendar.js */
+/* Kalender + Wochenübersicht darunter. Höhe des Kalenders: calendarHeight() in js/calendar.js
+   (Monat/Block: ganze Fläche; Woche: nur so hoch wie die Einträge, darunter die Übersicht) */
+#calendar-area {
+  flex: 1; margin: 14px; min-width: 0; display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto; scrollbar-gutter: stable;  /* Breite bleibt gleich, ob die Übersicht scrollt oder nicht */
+}
+#calendar { flex: none; min-width: 0; overflow: hidden; }
 
 .card {
   background: var(--panel); border: 1px solid var(--border);
@@ -303,7 +309,7 @@ code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4p
   --fc-border-color: var(--border); --fc-page-bg-color: var(--panel); --fc-neutral-bg-color: transparent;
   --fc-list-event-hover-bg-color: var(--bg); --fc-event-text-color: var(--text);
   --fc-today-bg-color: transparent;  /* heute = Rahmen, siehe unten */
-  height: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px;  /* Höhe: Option height */
   box-shadow: var(--shadow);
 }
 .fc .fc-toolbar.fc-header-toolbar { flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -420,7 +426,8 @@ code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4p
 @media (max-width: 900px) {
   body { height: auto; min-height: 100dvh; }
   main { flex-direction: column; }
-  #calendar { flex: none; order: -1; margin: 10px 10px 0; overflow: visible; }
+  #calendar-area { flex: none; order: -1; margin: 10px 10px 0; overflow: visible; }
+  #calendar { overflow: visible; }
   aside {
     width: 100%; overflow: visible; padding: 10px; display: grid; gap: 10px; align-items: start;
     grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
@@ -534,3 +541,49 @@ select.mac-calendar { max-width: 14em; }
 .ef-rules summary { cursor: pointer; color: var(--muted); }
 .ef-rules ul { margin: 6px 0 0; padding-left: 18px; }
 .ef-rules li { margin: 4px 0; line-height: 1.45; }
+
+/* --- Wochenübersicht (unter der Wochenansicht) ------------------------------------------------------------------- */
+.fc-dayGridWeek-view .fc-daygrid-day-frame { min-height: 140px; }  /* Platz zum Ablegen, auch wenn der Tag leer ist */
+#week-summary {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; flex-shrink: 0;
+}
+.ws-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 24px; padding: 0 4px; }
+.ws-head h2 { font-size: 15px; margin: 0; }
+.ws-head .muted { margin: 2px 0 0; }
+.ws-target { min-width: 240px; flex: 0 1 340px; }
+.ws-target .row-between { font-size: 12px; margin-bottom: 4px; }
+.ws-bar { position: relative; display: flex; height: 8px; border-radius: 99px; background: var(--bg); overflow: hidden; }
+.ws-bar span { height: 100%; }
+.ws-bar .done { background: var(--accent); }
+.ws-bar .planned { background: color-mix(in srgb, var(--accent) 35%, var(--panel)); }
+.ws-bar i { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+/* Tage: gleiche Spalten wie der Kalender darüber (gleiches Padding) */
+.ws-days { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--border); padding-top: 10px; }
+.ws-day { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; padding: 0 4px; min-width: 0; }
+.ws-day + .ws-day { border-left: 1px solid var(--border); }
+.ws-day b { font-variant-numeric: tabular-nums; }
+.ws-day .muted { margin: 0; font-size: 11px; }
+.ws-col { height: 44px; width: min(34px, 60%); display: flex; flex-direction: column-reverse; justify-content: flex-start; }
+.ws-col span { width: 100%; background: var(--sport); }
+.ws-col span:first-child { border-radius: 0 0 3px 3px; } .ws-col span:last-child { border-top-left-radius: 3px; border-top-right-radius: 3px; }
+.ws-day.planned .ws-col span { opacity: .45; }
+.ws-day.rest { color: var(--muted); }
+.ws-day .miss { color: var(--warn); font-size: 11px; }
+.ws-sports, .ws-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.ws-tile { background: var(--bg); border-radius: 10px; padding: 9px 11px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-tile .label { display: flex; align-items: center; gap: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.ws-tile .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--sport); }
+.ws-tile b { font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.ws-tile .sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.ws-tile .sub.list { white-space: normal; }
+.ws-mix { display: flex; height: 8px; border-radius: 99px; overflow: hidden; margin: 6px 0 2px; background: var(--border); }
+.ws-mix .easy { background: #3b82f6; } .ws-mix .moderate { background: #22c55e; } .ws-mix .hard { background: #f97316; }
+.ws-legend { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11px; color: var(--muted); }
+.ws-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+@media (max-width: 700px) {
+  #week-summary { padding: 10px; }
+  .ws-day { font-size: 10px; padding: 0 1px; }
+  .ws-day .tss { display: none; }
+  .ws-sports, .ws-stats { grid-template-columns: 1fr 1fr; }
+}

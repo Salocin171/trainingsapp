@@ -6,7 +6,7 @@ Eigene Vorlagen: Funktion schreiben und in TEMPLATES eintragen.
 """
 from typing import Callable, NamedTuple
 
-from .workouts import estimate_tss, repeat, step
+from .workouts import estimate_tss, intensity_factor, repeat, step
 
 ENDURANCE_SPORTS = ("swim", "ride", "run")
 
@@ -194,3 +194,8 @@ def build_for_tss(kind: str, sport: str, target_tss: float) -> dict:
 def is_hard(kind: str) -> bool:
     t = TEMPLATES.get(kind)
     return bool(t and t.hard)
+
+
+def is_hard_workout(w: dict) -> bool:
+    """Hart = harte Vorlage oder Intensitätsfaktor ab 0,85."""
+    return is_hard(w.get("template", "")) or intensity_factor(w) >= 0.85

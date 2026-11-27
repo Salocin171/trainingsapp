@@ -15,7 +15,7 @@ from . import (analysis, availability, compliance, conflicts, db, feedback, nutr
 from .load import compute_series, daily_tss
 from .sync import TARGETS, supports
 from .sync import status as sync_status
-from .workouts import summarize
+from .workouts import estimate_tss, summarize
 
 GARMIN_METRICS_MAX_AGE = timedelta(hours=6)
 HISTORY_DAYS = 180  # so weit zurück zählen Aktivitäten für CTL/ATL
@@ -222,6 +222,26 @@ def weeks(before: int | None, after: int | None) -> list[dict]:
     monday = periodization.monday(today)
     activities, workouts = _volume_data(monday - timedelta(weeks=before), monday + timedelta(weeks=after, days=6), settings)
     return volume.weeks(settings, activities, workouts, today, before, after)
+
+
+def week_summary(start: str) -> dict:
+    """Wochenübersicht für die Kalender-Wochenansicht (Woche, in der `start` liegt)."""
+    today = date.today()
+    monday = periodization.monday(date.fromisoformat(start))
+    sunday = monday + timedelta(days=6)
+    settings = db.get_settings()
+    activities = db.list_activities(monday.isoformat(), sunday.isoformat())
+    workouts = compliance.mark_matched(db.list_workouts(monday.isoformat(), sunday.isoformat()), activities, today, settings)
+    # Belastung am Ende der Woche: bisherige TSS plus geplante Workouts von heute bis Sonntag
+    _, tss = load_context(today)
+    if sunday >= today:
+        upcoming = compliance.mark_matched(db.list_workouts(today.isoformat(), sunday.isoformat()),
+                                           db.list_activities(today.isoformat(), today.isoformat()), today, settings)
+        for w in upcoming:
+            if w.get("status") != "done":
+                tss[w["date"]] = tss.get(w["date"], 0.0) + estimate_tss(w)
+    load = compute_series(tss, sunday, sunday)[-1] if tss else None
+    return volume.week_summary(settings, monday, activities, workouts, today, load)
 
 
 def goals() -> list[dict]:

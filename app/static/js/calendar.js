@@ -5,14 +5,16 @@ import { openEditor } from "./editor.js";
 import { openFeedback } from "./feedback.js";
 import { fmtMin, todayIso } from "./format.js";
 import { COMPLIANCE_LABEL } from "./labels.js";
+import { hideWeekSummary, showWeekSummary } from "./week-summary.js";
 import { drawProfile, isFlat } from "./workout.js";
 
 let calendar;
 let scrollListToToday = false;
 const STACKED = matchMedia("(max-width: 900px)");  // Seitenleiste unter dem Kalender, die Seite scrollt als Ganzes
 const NARROW = matchMedia("(max-width: 700px)");   // zu schmal für sieben Spalten: Woche als Liste
-// volle Höhe abzüglich des Außenabstands von #calendar (14px oben + unten), sonst scrollt die ganze Seite
-const calendarHeight = () => (STACKED.matches ? "auto" : "calc(100% - 28px)");
+const isWeekView = (view) => view === "dayGridWeek" || view === "listWeek";
+// Monat/Block füllen die Fläche; die Woche ist nur so hoch wie ihre Einträge, darunter steht die Wochenübersicht
+const calendarHeight = (view) => (STACKED.matches || isWeekView(view) ? "auto" : "100%");
 const weekView = () => (NARROW.matches ? "listWeek" : "dayGridWeek");
 const blockView = () => (NARROW.matches ? "listBlock" : "dayGridBlock");
 const isBlockView = (view) => view === "dayGridBlock" || view === "listBlock";
@@ -47,7 +49,7 @@ export function setCycleStart(cycleStart) {
 }
 
 function adaptCalendar() {
-  calendar.setOption("height", calendarHeight());
+  calendar.setOption("height", calendarHeight(calendar.view.type));
   calendar.setOption("headerToolbar", calendarToolbar());
   const view = calendar.view.type;
   if (view === "dayGridWeek" || view === "listWeek") calendar.changeView(weekView());
@@ -216,11 +218,12 @@ async function loadEvents(info, success, failure) {
 }
 
 export function initCalendar() {
+  const initialView = NARROW.matches ? "listWeek" : "dayGridMonth";
   calendar = new FullCalendar.Calendar($("#calendar"), {
-    initialView: NARROW.matches ? "listWeek" : "dayGridMonth",
+    initialView,
     locale: "de",
     firstDay: 1,
-    height: calendarHeight(),
+    height: calendarHeight(initialView),
     editable: true,
     eventStartEditable: true,
     headerToolbar: calendarToolbar(),
@@ -240,11 +243,19 @@ export function initCalendar() {
     datesSet: (info) => {
       scrollListToToday = info.view.type === "listMonth" && !STACKED.matches;
       setTimeout(scrollList);
+      const height = calendarHeight(info.view.type);
+      if (calendar.getOption("height") !== height) setTimeout(() => calendar.setOption("height", height));
+      if (!isWeekView(info.view.type) && hideWeekSummary()) setTimeout(() => calendar.updateSize());
     },
     eventsSet: () => setTimeout(() => {
       paintBlocks();
       scrollList();
       if (calendar.view.type === "dayGridBlock") calendar.updateSize();  // Scrollbalken erst nach dem Laden der Termine
+      // nach jedem Laden der Termine (Wochenwechsel, Änderungen) die Übersicht der Woche neu holen
+      if (isWeekView(calendar.view.type)) {
+        // Übersicht ein-/umblenden ändert die Breite (Scrollleiste) – FullCalendar misst nur bei Fenstergröße neu
+        showWeekSummary(calendar.view.currentStart.toLocaleDateString("sv-SE")).then(() => calendar.updateSize());
+      }
     }),
     dayCellDidMount: (info) => paintDay(info.el, info.el.dataset.date === mondayOf(info.el.dataset.date || "")),
     events: loadEvents,

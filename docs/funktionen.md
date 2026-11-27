@@ -16,6 +16,20 @@ Wie die App rechnet und was die einzelnen Teile der Oberfläche tun. Kurzfassung
   sowie die Aktivitäten der letzten 14 Tage. Eine *neue* CSS-Messung von Garmin wird übernommen, ein eigener CSS-Wert
   sonst nicht überschrieben. **„Aktivitäten importieren“** holt 365 Tage plus Trainingsbereitschaft/HRV des Tages.
 
+## Wochenübersicht (Wochenansicht)
+
+Unter der Wochenansicht steht eine Statistik der Woche ([`volume.week_summary`](../app/volume.py)). Erledigtes zählt
+mit echten Werten, noch Geplantes geschätzt, verpasste Workouts werden nur gezählt.
+
+- **Tage** (unter den Kalenderspalten): Zeit, TSS und Balken nach Sportart; geplante Tage heller.
+- **Je Sport**: Schwimmen und Laufen in km, sonst Stunden; Einheiten, davon erledigt, längste Einheit. Die Strecke
+  geplanter Workouts kommt aus dem Namen („8–10 km“ → 9 km), sonst aus den Schritten (Tempo = Schwelle bzw. CSS ÷
+  Intensität) – geschätzte Werte stehen mit „≈“.
+- **Ausdauer gegen Soll** der Woche (Schwimmen + Rad + Laufen), **Intensität** locker / mittel / hart (erledigt aus den
+  Pulszonen, geplant aus den Schritten; Grenzen Rad/Laufen 76 % und 88 %, Schwimmen 85 % und 98 % der CSS),
+  **harte Einheiten** (mindestens 10 min über der Hart-Grenze), **Form am Ende der Woche** inklusive der geplanten
+  Workouts.
+
 ## Zirkel-Timer (Kraft/Stabi)
 
 Im Workout **„▶ Zirkel-Timer“** oder oben **„⏱ Timer“** ohne Workout. Belastung und Pause in Sekunden, Runden (max. 60,
