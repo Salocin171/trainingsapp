@@ -128,14 +128,34 @@ let calendar;
 let scrollListToToday = false;
 const STACKED = matchMedia("(max-width: 900px)");  // Seitenleiste unter dem Kalender, die Seite scrollt als Ganzes
 const NARROW = matchMedia("(max-width: 700px)");   // zu schmal für sieben Spalten: Woche als Liste
+// volle Höhe abzüglich des Außenabstands von #calendar (14px oben + unten), sonst scrollt die ganze Seite
+const calendarHeight = () => (STACKED.matches ? "auto" : "calc(100% - 28px)");
 const weekView = () => (NARROW.matches ? "listWeek" : "dayGridWeek");
-const calendarToolbar = () => ({ left: "prev,next today", center: "title", right: `dayGridMonth,${weekView()},listMonth` });
+const blockView = () => (NARROW.matches ? "listBlock" : "dayGridBlock");
+const calendarToolbar = () => ({ left: "prev,next today", center: "title",
+  right: `dayGridMonth,${blockView()},${weekView()},listMonth` });
+
+// Block-Ansicht: immer ein ganzer Belastungszyklus (z. B. 4 Wochen), ‹ › springt blockweise.
+// Ausgerichtet am laufenden Zyklus (aus dem Status); ohne Zyklus (Tapering, kein Rhythmus) ab dieser Woche.
+const cycleLen = () => Number(state.settings?.recovery_every) || 4;
+function blockRange(date) {
+  const monday = (d) => new Date(`${mondayOf(d.toLocaleDateString("sv-SE"))}T00:00`);
+  const anchor = state.cycleStart ? new Date(`${state.cycleStart}T00:00`) : monday(new Date());
+  const n = cycleLen();
+  const weeks = Math.floor(Math.round((monday(date) - anchor) / 864e5) / 7 / n) * n;
+  const start = new Date(anchor);
+  start.setDate(start.getDate() + weeks * 7);
+  const end = new Date(start);
+  end.setDate(end.getDate() + n * 7);
+  return { start, end };
+}
 
 function adaptCalendar() {
-  calendar.setOption("height", STACKED.matches ? "auto" : "100%");
+  calendar.setOption("height", calendarHeight());
   calendar.setOption("headerToolbar", calendarToolbar());
   const view = calendar.view.type;
   if (view === "dayGridWeek" || view === "listWeek") calendar.changeView(weekView());
+  if (view === "dayGridBlock" || view === "listBlock") calendar.changeView(blockView());
 }
 
 // Liste: zum heutigen (oder nächsten) Tag springen statt am Monatsanfang zu stehen
@@ -187,17 +207,84 @@ function dayHeader(arg) {
   return { html: `<span class="dh-weekday">${weekday}</span><span class="dh-day">${day}</span>` };
 }
 
+// Belastungszyklen (z. B. 3 Belastungs- + 1 Entlastungswoche) als Hintergrund der Tage
+const blockWeeks = {};  // Montag → Wocheninfo aus /api/calendar
+
+function mondayOf(iso) {
+  const d = new Date(`${iso}T12:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toLocaleDateString("sv-SE");
+}
+
+function weekTag(w) {
+  if (w.race_week) return { short: "Rennen", long: "Rennwoche" };
+  if (w.prelude) return { short: "Vorlauf", long: "Vorlauf vor dem ersten Zyklus" };
+  if (!w.cycle_week) return { short: w.block_name, long: w.block_name };
+  const week = w.recovery ? "E" : `B${w.cycle_week}`;
+  const long = `${w.block_name} · ${w.recovery ? "Entlastungswoche" : `Belastungswoche ${w.cycle_week}`}`;
+  return w.cycle_no
+    ? { short: `Block ${w.cycle_no} · ${week}`, long: `Block ${w.cycle_no} · ${long}` }
+    : { short: `${week} · ${w.block_name}`, long };
+}
+
+// Farbe des Belastungszyklus (reihum) bzw. der Phase, wenn kein Zyklus läuft (Tapering, Regeneration)
+function setBlockColor(el, w) {
+  el.dataset.blk = w.block;
+  el.dataset.wk = w.prelude ? "pre" : w.recovery ? "rec" : "load";
+  if (w.cycle_color != null) el.dataset.cyc = w.cycle_color;
+  else delete el.dataset.cyc;
+}
+
+// showTag: Wochenlabel zeigen – im Raster am Montag, in der Liste am ersten aufgeführten Tag der Woche
+function paintDay(el, showTag) {
+  const iso = el.dataset.date;
+  const w = iso && blockWeeks[mondayOf(iso)];
+  if (!w) return;
+  setBlockColor(el, w);
+  el.toggleAttribute("data-starts", iso === w.week_start && w.starts);
+  const host = el.querySelector(".fc-list-day-cushion, .fc-daygrid-day-top");
+  let tag = host?.querySelector(".blk-tag");
+  if (host && showTag) {
+    if (!tag) {
+      tag = document.createElement("span");
+      tag.className = "blk-tag";
+      host.append(tag);  // Kopfzeile ist row-reverse: letztes Kind steht links
+    }
+    const t = weekTag(w);
+    const list = el.classList.contains("fc-list-day");  // in der Liste ist Platz für den vollen Text
+    tag.textContent = list ? t.long : t.short;
+    tag.title = t.long;
+  } else tag?.remove();
+}
+
+function paintBlocks() {
+  document.querySelectorAll("#calendar .fc-daygrid-day[data-date]").forEach((el) => paintDay(el, el.dataset.date === mondayOf(el.dataset.date)));
+  const seen = new Set();
+  document.querySelectorAll("#calendar .fc-list-day[data-date]").forEach((el) => {
+    const week = mondayOf(el.dataset.date);
+    paintDay(el, !seen.has(week));
+    seen.add(week);
+  });
+}
+
 function initCalendar() {
   calendar = new FullCalendar.Calendar($("#calendar"), {
     initialView: NARROW.matches ? "listWeek" : "dayGridMonth",
     locale: "de",
     firstDay: 1,
-    height: STACKED.matches ? "auto" : "100%",
+    height: calendarHeight(),
     editable: true,
     eventStartEditable: true,
     headerToolbar: calendarToolbar(),
     buttonText: { today: "Heute", dayGridMonth: "Monat", dayGridWeek: "Woche", listWeek: "Woche", listMonth: "Liste" },
-    views: { dayGrid: { dayHeaderContent: dayHeader } },
+    views: {
+      dayGrid: { dayHeaderContent: dayHeader },
+      dayGridBlock: { type: "dayGrid", visibleRange: blockRange, dateIncrement: { weeks: cycleLen() }, buttonText: "Block",
+        // nur die Tageszahl, am Monatsersten kurz mit Monat (sonst „30. November“ in jeder Ecke)
+        dayCellContent: (arg) => (arg.date.getDate() === 1
+          ? arg.date.toLocaleDateString("de-DE", { day: "numeric", month: "short" }) : String(arg.date.getDate())) },
+      listBlock: { type: "list", visibleRange: blockRange, dateIncrement: { weeks: cycleLen() }, buttonText: "Block" },
+    },
     listDayFormat: { weekday: "long", day: "numeric", month: "long" },
     listDaySideFormat: false,
     stickyHeaderDates: false,
@@ -206,7 +293,12 @@ function initCalendar() {
       scrollListToToday = info.view.type === "listMonth" && !STACKED.matches;
       setTimeout(scrollList);
     },
-    eventsSet: () => setTimeout(scrollList),
+    eventsSet: () => setTimeout(() => {
+      paintBlocks();
+      scrollList();
+      if (calendar.view.type === "dayGridBlock") calendar.updateSize();  // Scrollbalken erst nach dem Laden der Termine
+    }),
+    dayCellDidMount: (info) => paintDay(info.el, info.el.dataset.date === mondayOf(info.el.dataset.date || "")),
     events: loadEvents,
     dateClick: (info) => openEditor({ date: info.dateStr }),
     eventClick: (info) => {
@@ -241,6 +333,7 @@ function initCalendar() {
 async function loadEvents(info, success, failure) {
   try {
     const data = await api(`/api/calendar?start=${info.startStr.slice(0, 10)}&end=${info.endStr.slice(0, 10)}`);
+    for (const w of data.weeks || []) blockWeeks[w.week_start] = w;
     const events = [];
     const workoutById = Object.fromEntries(data.workouts.map((w) => [w.id, w]));
     for (const w of data.workouts) {
@@ -334,6 +427,14 @@ async function refreshSidebar() {
 // Aktueller Block, Zeitleiste bis zum Wettkampf, Position im Belastungszyklus
 function renderBlock(st) {
   const w = st.week;
+  const start = w.cycle_week ? new Date(`${w.week_start}T00:00`) : null;
+  start?.setDate(start.getDate() - (w.cycle_week - 1) * 7);
+  const cycleStart = start?.toLocaleDateString("sv-SE") || null;
+  if (cycleStart !== state.cycleStart) {
+    state.cycleStart = cycleStart;
+    const view = calendar.view.type;  // Block-Ansicht neu ausrichten
+    if (view === "dayGridBlock" || view === "listBlock") calendar.changeView(view, calendar.getDate());
+  }
   $("#block-title").textContent = w.block_week ? `${w.block_name} · Woche ${w.block_week}/${w.block_weeks}` : w.block_name;
   $("#race-countdown").textContent = st.days_to_goal != null
     ? `${st.goal_name || "Wettkampf"} in ${w.weeks_to_race} Wo (${st.days_to_goal} Tage)` : "";
@@ -356,8 +457,10 @@ function renderBlock(st) {
       return `<span class="${recovery ? "rec" : "load"} ${n === w.cycle_week ? "now" : ""}"
         title="${recovery ? "Entlastungswoche" : `Belastungswoche ${n}`}">${recovery ? "E" : `B${n}`}</span>`;
     }).join("");
+    if (w.cycle_no) cycle = `<b class="cyc-name">Block ${w.cycle_no}</b>${cycle}`;
   }
   $("#cycle").innerHTML = cycle;
+  setBlockColor($("#cycle"), { ...w, prelude: Boolean(w.cycle_starts) });
 
   let info = w.recovery ? "Entlastungswoche – Umfang runter, Intensität raus"
     : w.cycle_week === w.cycle_len ? `Belastungswoche ${w.cycle_week} – letzte vor dem Tapering`
@@ -380,9 +483,12 @@ function renderBlock(st) {
 
 function renderWeeks(weeks) {
   const max = Math.max(1, ...weeks.map((w) => Math.max(w.target_hours, w.done_hours + w.planned_hours)));
-  $("#weeks").innerHTML = weeks.map((w) => {
+  $("#weeks").innerHTML = weeks.map((w, i) => {
     const pct = (h) => (h / max) * 100;
-    return `<div class="week ${w.current ? "current" : ""}" title="${w.block_name}${w.recovery ? " · Entlastung" : ""}">
+    const starts = i > 0 && w.cycle_week === 1;  // neuer Belastungszyklus: Trennlinie
+    return `<div class="week ${w.current ? "current" : ""} ${starts ? "cycle-start" : ""}" data-blk="${w.block}"
+      data-wk="${w.recovery ? "rec" : "load"}" ${w.cycle_color != null ? `data-cyc="${w.cycle_color}"` : ""}
+      title="${w.cycle_no ? `Block ${w.cycle_no} · ` : ""}${w.block_name}${w.recovery ? " · Entlastung" : ""}">
       <span class="wk">KW ${isoWeek(w.week_start)}${w.recovery ? " E" : ""}</span>
       <div class="bar">
         <span class="done" style="width:${pct(w.done_hours)}%"></span>

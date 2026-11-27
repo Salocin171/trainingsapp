@@ -540,6 +540,27 @@ def test_cycle_start_and_taper_weeks():
     assert periodization.next_recovery_week(settings, date(2026, 10, 23)) == "2026-11-30"
 
 
+def test_calendar_weeks_mark_cycle_and_block_starts():
+    settings = {**SETTINGS, "cycle_start": "2026-11-09", "recovery_every": 4, "taper_weeks": 2}
+    weeks = periodization.calendar_weeks(settings, date(2026, 11, 4), date(2026, 12, 13))
+    assert [w["week_start"] for w in weeks] == ["2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23", "2026-11-30",
+                                                "2026-12-07"]
+    assert weeks[0]["prelude"] and not weeks[0]["starts"]
+    assert weeks[1]["starts"] and weeks[1]["cycle_week"] == 1 and not weeks[2]["starts"]
+    assert weeks[4]["recovery"] and weeks[5]["starts"]
+    block_change = periodization.calendar_weeks(settings, date(2027, 6, 14), date(2027, 6, 14))[0]
+    assert block_change["block"] == "taper" and block_change["starts"]
+
+
+def test_week_overview_shows_two_cycles():
+    settings = {**SETTINGS, "cycle_start": "2026-11-02", "recovery_every": 4, "taper_weeks": 2}
+    window = lambda d: periodization.cycle_window(settings, date.fromisoformat(d))  # noqa: E731
+    assert window("2026-11-27") == (3, 4)   # kein voriger Zyklus (Vorlauf): laufender + nächster
+    assert window("2026-12-21") == (7, 0)   # vorheriger + laufender, bis zur Entlastungswoche
+    assert window("2026-12-28") == (4, 3)   # neuer Zyklus: der älteste fällt raus
+    assert window("2027-06-21") == (4, 3)   # Tapering: kein Rhythmus, 8 Wochen rund um heute
+
+
 def test_season_plan_with_fixed_cycle_start():
     """Saisonplan Kuckuckshausen 2027: 4er-Blöcke ab 05.10., Block 8 ohne Entlastung, 2 Wochen Taper."""
     settings = {**SETTINGS, "goal_date": "2027-06-27", "race_type": "ironman", "recovery_every": 4,

@@ -73,6 +73,21 @@ def _cycle(settings: dict, week_start: date, weeks_out: int | None, taper_len: i
     return (n if pos == 0 else pos, pos == 0)
 
 
+CYCLE_COLORS = 4  # Farben im Kalender, reihum je Zyklus (nebeneinanderliegende Zyklen nie gleich)
+
+
+def _cycle_number(settings: dict, week_start: date, cycle_week: int | None, n: int) -> dict:
+    """cycle_no: laufende Nummer ab `cycle_start` (1 = erster Zyklus), sonst None; cycle_color: 0…CYCLE_COLORS-1."""
+    if not cycle_week:
+        return {"cycle_no": None, "cycle_color": None}
+    first = week_start - timedelta(weeks=cycle_week - 1)
+    if settings.get("cycle_start"):
+        no = (first - monday(date.fromisoformat(settings["cycle_start"]))).days // (7 * n) + 1
+        return {"cycle_no": no, "cycle_color": (no - 1) % CYCLE_COLORS}
+    # ohne festen Start (rückwärts vom Rennen): nur eine stabile Farbe, keine Nummer
+    return {"cycle_no": None, "cycle_color": (first - date(2000, 1, 3)).days // (7 * n) % CYCLE_COLORS}
+
+
 def _block_at(plan: list, weeks_out: int) -> tuple[str, int, int | None]:
     """(Block, erste weeks_out des Blocks, Länge) für eine Woche vor dem Rennen."""
     start = 0
@@ -129,6 +144,7 @@ def week_info(settings: dict, day: date) -> dict:
 
     if info["cycle_week"]:
         volume *= RECOVERY_VOLUME if info["recovery"] else _load_step(info["cycle_week"], n)
+    info.update(_cycle_number(settings, start, info["cycle_week"], n))
     info["block_name"] = BLOCK_NAMES[info["block"]]
     info["focus"] = BLOCK_FOCUS[info["block"]]
     info["target_hours"] = round(hours * volume, 1)
@@ -144,6 +160,42 @@ def next_recovery_week(settings: dict, day: date) -> str | None:
         if info["recovery"]:
             return info["week_start"]
     return None
+
+
+def cycle_window(settings: dict, today: date, cycles: int = 2) -> tuple[int, int]:
+    """(Wochen zurück, Wochen voraus) für die Wochenübersicht: immer `cycles` ganze Zyklen.
+
+    Gezeigt werden der vorige und der laufende Zyklus; gibt es keinen vorigen (z. B. Vorlauf),
+    der laufende und der nächste. Rutscht also am Montag nach jeder Entlastungswoche um einen Zyklus weiter.
+    Ohne Belastungsrhythmus (Tapering, Regeneration, kein Zyklus eingestellt): 8 Wochen rund um heute.
+    """
+    info = week_info(settings, today)
+    n = info["cycle_len"]
+    if not (n and info["cycle_week"]):
+        return 4, 3
+    current = info["cycle_week"] - 1  # Wochen seit Beginn des laufenden Zyklus
+    previous = week_info(settings, monday(today) - timedelta(weeks=current + n))
+    before = current + n * (cycles - 1) if previous["cycle_week"] == 1 and "cycle_starts" not in previous else current
+    return before, n * cycles - 1 - before
+
+
+def calendar_weeks(settings: dict, start: date, end: date) -> list[dict]:
+    """Block und Zykluswoche je Kalenderwoche zwischen start und end (zum Einfärben des Kalenders).
+
+    `starts` = hier beginnt ein neuer Zyklus oder Block (Trennlinie im Kalender).
+    """
+    keys = ("week_start", "block", "block_name", "cycle_week", "cycle_len", "cycle_no", "cycle_color", "recovery",
+            "race_week")
+    prev = week_info(settings, monday(start) - timedelta(weeks=1))
+    weeks, day = [], monday(start)
+    while day <= end:
+        info = week_info(settings, day)
+        weeks.append({k: info[k] for k in keys} | {
+            "prelude": "cycle_starts" in info,
+            "starts": info["cycle_week"] == 1 or info["block"] != prev["block"],
+        })
+        prev, day = info, day + timedelta(weeks=1)
+    return weeks
 
 
 def timeline(settings: dict, today: date) -> list[dict]:

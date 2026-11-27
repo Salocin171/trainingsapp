@@ -54,6 +54,8 @@ def weeks(settings: dict, activities: list[dict], workouts: list[dict], today: d
         out.append({
             "week_start": start.isoformat(), "current": i == 0,
             "target_hours": info["target_hours"], "block_name": info["block_name"], "recovery": info["recovery"],
+            "block": info["block"], "cycle_week": info["cycle_week"], "cycle_no": info["cycle_no"],
+            "cycle_color": info["cycle_color"],
             "done_hours": round(sum(s["done"] for s in endurance), 1),
             "planned_hours": round(sum(s["planned"] for s in endurance), 1),
             "extra_hours": round(sum(s["done"] + s["planned"] for s in extra), 1),

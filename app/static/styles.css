@@ -23,6 +23,18 @@
   --fuel-during: #db2777;
   --fuel-after: #7c3aed;
   --fuel-on: #fff;
+  /* Trainingsblöcke (Zeitleiste und Kalender) */
+  --blk-base: #0891b2;
+  --blk-build1: #2563eb;
+  --blk-build2: #7c3aed;
+  --blk-peak: #ea580c;
+  --blk-taper: #16a34a;
+  --blk-transition: #64748b;
+  /* Belastungszyklen im Kalender, reihum (periodization.CYCLE_COLORS) */
+  --cyc-0: #0d9488;
+  --cyc-1: #4f46e5;
+  --cyc-2: #d97706;
+  --cyc-3: #c026d3;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -44,6 +56,10 @@
     --fuel-during: #f472b6;
     --fuel-after: #a78bfa;
     --fuel-on: #0f1115;
+    --cyc-0: #2dd4bf;
+    --cyc-1: #818cf8;
+    --cyc-2: #fbbf24;
+    --cyc-3: #e879f9;
   }
 }
 
@@ -88,7 +104,7 @@ aside {
   padding: 14px 0 14px 14px; display: flex; flex-direction: column; gap: 12px;
 }
 body.no-aside aside { display: none; }
-#calendar { flex: 1; margin: 14px; min-width: 0; overflow: hidden; }
+#calendar { flex: 1; margin: 14px; min-width: 0; overflow: hidden; }  /* Höhe: calendarHeight() in app.js */
 
 .card {
   background: var(--panel); border: 1px solid var(--border);
@@ -175,12 +191,16 @@ legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .timeline .seg span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px; }
 .timeline .seg.active { opacity: 1; font-weight: 600; }
 .timeline .seg i { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); }
-.seg.base { background: #0891b2; } .seg.build1 { background: #2563eb; } .seg.build2 { background: #7c3aed; }
-.seg.peak { background: #ea580c; } .seg.taper { background: #16a34a; }
+.seg.base { background: var(--blk-base); } .seg.build1 { background: var(--blk-build1); } .seg.build2 { background: var(--blk-build2); }
+.seg.peak { background: var(--blk-peak); } .seg.taper { background: var(--blk-taper); }
 .cycle { display: flex; gap: 4px; margin-bottom: 4px; }
 .cycle span { font-size: 11px; padding: 2px 8px; border-radius: 5px; border: 1px solid var(--border); color: var(--muted); }
 .cycle span.now { font-weight: 700; color: #fff; background: var(--accent); border-color: var(--accent); }
 .cycle span.rec.now { background: var(--done); border-color: var(--done); }
+.cycle { align-items: center; }
+.cycle .cyc-name { font-size: 12px; color: var(--blk, var(--text)); margin-right: 4px; }
+.cycle[data-blk] span.now { background: var(--blk); border-color: var(--blk); }
+.cycle[data-blk] span.rec.now { background: var(--blk-tint); border-color: var(--blk); color: var(--blk); }
 
 /* Wochenstunden und Ziele */
 .bar { position: relative; height: 10px; background: var(--bg); border-radius: 5px; display: flex; overflow: visible; }
@@ -190,6 +210,8 @@ legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .weeks { display: flex; flex-direction: column; gap: 6px; }
 .week { display: grid; grid-template-columns: 52px 1fr 92px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
 .week.current { color: var(--text); font-weight: 600; }
+.week[data-blk] { border-left: 3px solid var(--blk-line); padding-left: 6px; }
+.week.cycle-start { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .week .hrs { text-align: right; font-variant-numeric: tabular-nums; }
 .week-sports { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 12px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
@@ -280,7 +302,7 @@ code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4p
 .fc {
   --fc-border-color: var(--border); --fc-page-bg-color: var(--panel); --fc-neutral-bg-color: transparent;
   --fc-list-event-hover-bg-color: var(--bg); --fc-event-text-color: var(--text);
-  --fc-today-bg-color: color-mix(in srgb, var(--accent) 6%, transparent);
+  --fc-today-bg-color: transparent;  /* heute = Rahmen, siehe unten */
   height: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px;
   box-shadow: var(--shadow);
 }
@@ -305,6 +327,36 @@ code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4p
 .fc-day-today .dh-day { background: var(--accent); color: #fff; }
 .fc .fc-daygrid-day-number { font-size: 12px; color: var(--muted); padding: 4px 6px; }
 .fc .fc-day-today .fc-daygrid-day-number { background: var(--accent); color: #fff; border-radius: 99px; min-width: 22px; text-align: center; padding: 1px 6px; margin: 3px; font-weight: 600; }
+
+/* Belastungszyklen: Tage in Blockfarbe getönt, Entlastungswoche sanfter, Linie am Zyklus-/Blockbeginn */
+[data-blk="base"] { --blk: var(--blk-base); } [data-blk="build1"] { --blk: var(--blk-build1); }
+[data-blk="build2"] { --blk: var(--blk-build2); } [data-blk="peak"] { --blk: var(--blk-peak); }
+[data-blk="taper"] { --blk: var(--blk-taper); } [data-blk="transition"] { --blk: var(--blk-transition); }
+[data-cyc="0"] { --blk: var(--cyc-0); } [data-cyc="1"] { --blk: var(--cyc-1); }
+[data-cyc="2"] { --blk: var(--cyc-2); } [data-cyc="3"] { --blk: var(--cyc-3); }
+[data-wk="load"] { --blk-tint: color-mix(in srgb, var(--blk) 13%, var(--panel)); --blk-line: var(--blk); }
+[data-wk="rec"] { --blk-tint: color-mix(in srgb, var(--blk) 4%, var(--panel)); --blk-line: color-mix(in srgb, var(--blk) 45%, var(--panel)); }
+[data-wk="pre"] { --blk-tint: var(--panel); --blk-line: var(--border); }  /* Vorlauf vor dem ersten Zyklus */
+.fc .fc-daygrid-day[data-wk] { background: var(--blk-tint); }
+.fc .fc-daygrid-day[data-wk]:first-child { box-shadow: inset 3px 0 0 var(--blk-line); }
+.fc .fc-daygrid-day[data-starts], .fc .fc-daygrid-day[data-starts] ~ .fc-daygrid-day { border-top: 2px solid var(--blk); }
+.fc .fc-daygrid-day-top { align-items: center; }
+.blk-tag {
+  margin: 3px auto 0 4px; padding: 0 6px; border-radius: 99px; font-size: 10px; line-height: 17px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  color: var(--blk); background: color-mix(in srgb, var(--blk) 16%, var(--panel));
+}
+[data-wk="rec"] .blk-tag { color: color-mix(in srgb, var(--blk) 70%, var(--muted)); background: none; box-shadow: inset 0 0 0 1px var(--blk-line); }
+[data-wk="pre"] .blk-tag { color: var(--muted); background: var(--bg); }
+.fc .fc-list-day[data-wk] > th { background: linear-gradient(90deg, var(--blk-tint), var(--panel) 70%); box-shadow: inset 3px 0 0 var(--blk-line); }
+.fc .fc-list-day[data-wk] .fc-list-day-cushion { padding-left: 10px; }
+.fc .fc-list-day-cushion .blk-tag { float: right; margin: 1px 0 0 8px; }
+
+/* Heute: Rahmen um den Tag */
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame::after {
+  content: ""; display: block; position: absolute; inset: 1px; z-index: 4; pointer-events: none; border-radius: 8px;
+  border: 2px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
 
 /* Karten im Raster: Fläche in Sportfarbe, Streifen links = Compliance (sonst Sport) */
 .fc-daygrid-event.fc-event {
@@ -334,6 +386,10 @@ code { font-size: 12px; background: var(--bg); padding: 0 4px; border-radius: 4p
 .ev-profile { display: block; width: 100%; height: 26px; margin-top: 4px; border-radius: 3px; }
 .fc-dayGridMonth-view .ev-meta { display: none; }
 .fc-dayGridMonth-view .ev-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+/* Block-Ansicht: Name einzeilig, darunter Dauer/TSS – so passen vier Wochen auf den Schirm */
+.fc-dayGridBlock-view .ev-name, .fc-dayGridBlock-view .ev-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-dayGridBlock-view .ev-name { font-weight: 500; }
+.fc-dayGridBlock-view .ev-note { display: none; }
 .fc-dayGridWeek-view .fc-daygrid-event.fc-event { padding: 6px 8px; margin-bottom: 6px !important; }
 
 /* Liste: Tage als eigene Abschnitte */

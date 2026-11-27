@@ -68,6 +68,8 @@ def calendar(start: str, end: str):
                      for w in workouts],
         "activities": [{**a, "unplanned": a["id"] in unplanned, "plan": links.get(a["id"])} for a in activities],
         "races": [r for r in races if start[:10] <= r["date"] <= end[:10]],
+        "weeks": periodization.calendar_weeks(settings, date.fromisoformat(start[:10]),
+                                              date.fromisoformat(end[:10]) - timedelta(days=1)),
     }
 
 
@@ -440,8 +442,11 @@ def _volume_data(start: date, end: date):
 
 
 @app.get("/api/weeks")
-def weeks(before: int = 3, after: int = 2):
+def weeks(before: int | None = None, after: int | None = None):
+    """Wochenstunden; ohne Angabe zwei ganze Belastungszyklen (vorheriger + laufender)."""
     today = date.today()
+    if before is None or after is None:
+        before, after = periodization.cycle_window(db.get_settings(), today)
     monday = periodization.monday(today)
     activities, workouts = _volume_data(monday - timedelta(weeks=before), monday + timedelta(weeks=after, days=6))
     return volume.weeks(db.get_settings(), activities, workouts, today, before, after)
