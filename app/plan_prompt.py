@@ -105,8 +105,10 @@ def build(settings: dict, start: date, weeks: int, race_list: list[dict], ctl: f
                       "2–3× Rad, 3–4× Laufen, 1–2× Kraft/Stabi, mindestens ein Ruhetag; lange Einheiten dort, wo "
                       "viel Zeit frei ist (oft am Wochenende)."),
               "- Jede Ausdauereinheit bekommt eine \"time\" in einem freien Zeitfenster; die Dauer muss hineinpassen.",
-              "- Harte Einheiten derselben Sportart mindestens 48 h auseinander, pro Tag höchstens eine harte Einheit; "
-              "kein harter Lauf am Tag nach der längsten Radeinheit; Kraft nicht am Vortag harter Intervalle.",
+              *([] if s.get("own_spacing_rules") else  # Abstände regelt der Nutzer selbst (eigene Skills)
+                ["- Harte Einheiten derselben Sportart mindestens 48 h auseinander, pro Tag höchstens eine harte "
+                 "Einheit."]),
+              "- Kein harter Lauf am Tag nach der längsten Radeinheit; Kraft nicht am Vortag harter Intervalle.",
               "- Entlastungswoche wirklich locker und kürzer.",
               "- Wettkämpfe: Tag davor kurz mit Steigerungen, danach Erholung.",
               "- Ernährung NICHT angeben – die App berechnet Kohlenhydrate, Trinken und Eiweiß selbst.",

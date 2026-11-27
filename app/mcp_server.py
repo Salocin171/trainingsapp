@@ -364,7 +364,7 @@ def set_activity_feedback(activity_id: str, rpe: float | None = None, feel: int 
 
 SETTABLE = {"ftp", "lthr_run", "lthr_ride", "max_hr", "threshold_pace", "css", "weight", "sweat_rate", "goal_name", "goal_date",
             "race_type", "week_hours", "recovery_every", "cycle_start", "taper_weeks", "target_ctl", "week_pattern",
-            "auto_sync", "garmin_profile", "mac_calendar", "availability", "calendar_ics"}
+            "auto_sync", "garmin_profile", "mac_calendar", "availability", "calendar_ics", "own_spacing_rules"}
 
 
 @server.tool(annotations=WRITE)
@@ -373,7 +373,8 @@ def update_settings(values: dict) -> dict:
     Erlaubt: ftp, lthr_run, lthr_ride, max_hr, threshold_pace (s/km), css (s/100 m), weight, sweat_rate (l/h), goal_name, goal_date,
     race_type (ironman|half|other), week_hours, recovery_every, cycle_start (Montag der 1. Belastungswoche, "" = vom
     Wettkampf rückwärts), taper_weeks (0 = Standard), target_ctl, week_pattern, auto_sync (garmin, intervals, zwift,
-    calendar), garmin_profile, mac_calendar (Name des Kalenders in der Kalender-App des Macs für Trainings).
+    calendar), garmin_profile, mac_calendar (Name des Kalenders in der Kalender-App des Macs für Trainings),
+    own_spacing_rules (True = keine 48-h-/eine-harte-pro-Tag-Regel in Vorschlägen und Plan-Brief; Abstände regelt der Nutzer).
     Achtung: Mit garmin_profile=True überschreibt Garmin FTP/LTHR/Schwellentempo beim nächsten Öffnen."""
     unknown = set(values) - SETTABLE
     if unknown:

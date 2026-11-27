@@ -298,13 +298,14 @@ def plan_days(settings: dict, today: date, state: dict, workouts: list[dict], ac
                 if templates.is_hard(kind) and info["recovery"]:
                     kind = "endurance"
                     reasons.append("Entlastungswoche: Intensität raus")
-                gap = min((abs((day - d).days) for d in hard_dates.get(sport, ())), default=99)
-                if templates.is_hard(kind) and gap < 2:
-                    reasons.append(f"Harte {SPORT_DE[sport]}-Einheit am Vortag oder Folgetag")
-                    kind = "endurance"
-                if templates.is_hard(kind) and sport != "swim" and hard_today - {"swim"}:
-                    reasons.append("Heute schon eine harte Einheit")
-                    kind = "endurance"
+                if not settings.get("own_spacing_rules"):  # sonst regelt der Nutzer die Abstände selbst
+                    gap = min((abs((day - d).days) for d in hard_dates.get(sport, ())), default=99)
+                    if templates.is_hard(kind) and gap < 2:
+                        reasons.append(f"Harte {SPORT_DE[sport]}-Einheit am Vortag oder Folgetag")
+                        kind = "endurance"
+                    if templates.is_hard(kind) and sport != "swim" and hard_today - {"swim"}:
+                        reasons.append("Heute schon eine harte Einheit")
+                        kind = "endurance"
                 if templates.is_hard(kind) and tsb < -25:
                     reasons.append(f"Hohe Ermüdung (TSB {tsb:.0f}) – Intensität raus")
                     kind = "endurance"

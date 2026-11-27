@@ -29,7 +29,9 @@ DEFAULT_SETTINGS = {
     "target_ctl": 0,             # Ziel-Fitness (CTL) zu Beginn des Taperings, 0 = aus
     "weight": 0,                 # kg, für Verpflegungsplan (von Garmin, falls vorhanden)
     "sweat_rate": 0,             # l/h Schweißverlust (vorher/nachher wiegen), 0 = unbekannt → Trinken nach Durst
-    "plant_based": False,        # vegetarisch/vegan → Ernährungshinweise mit pflanzlichem Protein
+    "plant_based": False,
+    "own_spacing_rules": False,  # True = Abstände harter Einheiten regelt der Nutzer selbst (z. B. eigene KI-Skills):
+                                 # kein 48-h-/eine-pro-Tag-Check in Vorschlägen und KI-Auftrag        # vegetarisch/vegan → Ernährungshinweise mit pflanzlichem Protein
     "setup_done": False,
     "calendar_ics": [],          # private iCal-Links (Uni, Arbeit …) → belegte Zeiten im KI-Auftrag; bleibt lokal
     "availability": "",          # eigene Angaben, wann trainiert werden kann (wird im KI-Auftrag mitgeschickt)         # Einrichtungsdialog abgeschlossen (neue Datenbanken starten mit False)

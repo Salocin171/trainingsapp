@@ -101,6 +101,16 @@ def test_multiple_sessions_per_day():
     assert templates.is_hard(days[0]["kind"])
 
 
+def test_own_spacing_rules_skip_hard_gap_check():
+    today = date(2026, 11, 3)  # Dienstag: Rad hart, am Montag schon hartes Rad erledigt
+    hard_ride = [{"date": "2026-11-02", "sport": "ride", "tss": 90, "duration": 3600}]
+    state = {"ctl": 50, "atl": 45}
+    default = recommend.plan_days(SETTINGS, today, state, [], hard_ride, {}, 1)
+    assert not templates.is_hard(default[0]["kind"])
+    own = recommend.plan_days({**SETTINGS, "own_spacing_rules": True}, today, state, [], hard_ride, {}, 1)
+    assert templates.is_hard(own[0]["kind"])
+
+
 def test_recovery_week_removes_intensity():
     # 4er-Rhythmus, rückwärts vom Rennen gezählt: 26.10.2026 ist eine Entlastungswoche
     info = periodization.week_info(SETTINGS, date(2026, 10, 26))

@@ -308,6 +308,8 @@ Bewusst regelbasiert und nachvollziehbar, jeder Vorschlag hat eine Begründung.
 4. **Regeln** (Tag für Tag mit simulierter Belastung):
    - keine harte Einheit in derselben Sportart am Vor- oder Folgetag einer harten Einheit
    - höchstens eine harte Rad-/Laufeinheit pro Tag (Schwimmen zählt nicht mit)
+     (beide Abstandsregeln entfallen mit der Einstellung `own_spacing_rules`, z. B. wenn eigene KI-Skills
+     die Abstände vorgeben; dann fehlen sie auch im KI-Auftrag)
    - Entlastungswoche: Intensität raus
    - keine Intensität bei TSB < −25, nur Regeneration bei TSB < −35
    - heute lockerer, wenn Garmin niedrige Trainingsbereitschaft oder schlechte HRV meldet
